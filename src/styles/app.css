@@ -10,9 +10,11 @@ html > body[data-scroll-locked] {
   margin-right: 0px !important;
 }
 
-/* Clerk TOC (curved rail + dot): tint active accent and inactive guides like the reference UI. */
+/* Clerk TOC + docs sidebar: use brand primary for active/highlight (matches Tailwind bg-fd-primary/10, text-fd-primary). */
 .dark #nd-toc,
-.dark [data-toc-popover] {
+.dark [data-toc-popover],
+.dark #nd-sidebar,
+.dark #nd-sidebar-mobile {
   --color-fd-primary: #b3b3ff;
   --color-fd-primary-foreground: #0f172a;
 }
