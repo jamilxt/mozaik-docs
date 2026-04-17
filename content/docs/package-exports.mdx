@@ -1,0 +1,38 @@
+---
+title: Package exports
+description: Main entry point and subpath typings for @mozaik-ai/core.
+icon: Box
+---
+
+The primary API is exported from **`@mozaik-ai/core`**. The following reflects the public **`src/index.ts`** on the [`development`](https://github.com/jigjoy-ai/mozaik/tree/development) branch; your installed version may add or refine symbols—always check **`node_modules/@mozaik-ai/core`** for the exact set.
+
+## Main entry
+
+| Category | Exports |
+| -------- | ------- |
+| **Context runtime** | `Context`, `ContextItem`, `ContextRepository`, `InMemoryContextRepository` |
+| **Input items** | `UserMessage`, `DeveloperMessage`, `FunctionCallOutput` |
+| **Output items** | `ModelMessage`, `FunctionCall`, `Reasoning` |
+| **Inference** | `GenerativeModel`, `OpenAIResponses`, `InferenceRequest`, `InferenceResponse`, `Gpt54`, `Gpt54Mini`, `Gpt54Nano`, `Tool` |
+| **Usage** | `TokenUsage`, `InputTokenDetails`, `OutputTokenDetails` |
+| **Context engine** | `Condition`, `BaseCondition`, `Action`, `AsyncAction`, `Rule`, `AsyncRule`, `If`, `Loop` |
+
+Import example:
+
+```ts
+import {
+  Context,
+  UserMessage,
+  OpenAIResponses,
+  Gpt54,
+} from '@mozaik-ai/core';
+```
+
+## Subpath typings
+
+The package **`package.json`** declares **`typesVersions`** entries for deeper paths (e.g. **`core`** and **`providers/openai`**). These are mainly for TypeScript resolution of internal layout when the published **`dist`** mirrors that structure—follow your editor’s jump-to-definition from the main exports first, then use subpaths only if your version documents them on npm.
+
+## Source of truth
+
+- [github.com/jigjoy-ai/mozaik — `src/index.ts`](https://github.com/jigjoy-ai/mozaik/blob/development/src/index.ts)
+- [npm — `@mozaik-ai/core`](https://www.npmjs.com/package/@mozaik-ai/core)

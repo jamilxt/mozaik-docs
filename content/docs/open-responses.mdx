@@ -1,0 +1,28 @@
+---
+title: OpenResponses
+description: How Mozaik maps to the OpenResponses specification for multi-provider LLM APIs.
+icon: Globe
+---
+
+Mozaik’s object model is designed to match **[OpenResponses](https://www.openresponses.org/)**, a shared way to describe LLM interactions across vendors: same conceptual **items** for context and responses, even when wire formats differ.
+
+## Inputs and outputs
+
+- **Input (context)** — Client-supplied items such as **`user_message`**, **`developer_message`**, and **`function_call_output`** (tool results fed back to the model).
+- **Output (response)** — Model-produced items such as **`reasoning`**, **`function_call`**, and **`model_message`**.
+- **Streaming** — Items may arrive incrementally as **semantic events** (item-level updates), not only as raw token deltas.
+
+Mozaik turns that vocabulary into TypeScript classes you can construct, append, serialize, and store.
+
+## Why it matters
+
+When your domain model follows a provider-agnostic spec:
+
+- Swapping or combining providers becomes a smaller change.
+- Persistence and replay stay stable—your database stores **context items**, not one-off JSON blobs per vendor.
+- Tool use, reasoning traces, and assistant messages share one mental model.
+
+## Learn more
+
+- [OpenResponses — openresponses.org](https://www.openresponses.org/)
+- [Mozaik repository](https://github.com/jigjoy-ai/mozaik/tree/development)

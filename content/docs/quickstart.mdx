@@ -1,0 +1,58 @@
+---
+title: Quickstart
+description: Create context, run inference with OpenAI Responses, and persist it with a repository.
+icon: Zap
+---
+
+This walkthrough mirrors the flow from the [Mozaik README](https://github.com/jigjoy-ai/mozaik/blob/development/README.md): build a **context** from a developer (system) message and a user message, call the model through **`OpenAIResponses`**, merge the returned **context items** back into the context, and **save / reload** via a **`ContextRepository`**.
+
+## Example
+
+```ts
+import {
+  Context,
+  DeveloperMessage,
+  UserMessage,
+  InMemoryContextRepository,
+  OpenAIResponses,
+  Gpt54,
+} from '@mozaik-ai/core';
+
+const message = UserMessage.create('Tell me a joke about birds');
+const developerMessage = DeveloperMessage.create(
+  'You are a joke teller. You will be given a topic and you will need to tell a joke to the user.',
+);
+
+const projectId = `pr-${crypto.randomUUID()}`;
+const contextRepository = new InMemoryContextRepository();
+const context = Context.create(projectId)
+  .addItem(developerMessage)
+  .addItem(message);
+
+await contextRepository.save(context);
+
+const openresponses = new OpenAIResponses();
+const newContextItems = await openresponses.infer(Gpt54, context);
+context.applyModelOutput(newContextItems);
+
+await contextRepository.save(context);
+const restoredContexts = await contextRepository.getByProjectId(projectId);
+console.log(restoredContexts);
+```
+
+## What this is doing
+
+1. **`Context.create(projectId)`** — Allocates an empty context keyed by your own id (e.g. conversation or project).
+2. **`addItem(...)`** — Appends OpenResponses-shaped **input** items (`DeveloperMessage`, `UserMessage`, etc.).
+3. **`OpenAIResponses.infer(model, context)`** — Runs the **context runtime**: structured context in, new **output** items returned (assistant message, tool calls, reasoning segments, depending on the model and settings).
+4. **`context.applyModelOutput(newContextItems)`** — Appends those outputs to the same context for the next turn or for persistence.
+5. **`InMemoryContextRepository`** — Example storage; swap for your database or cache in real apps.
+
+Model identifiers such as **`Gpt54`**, **`Gpt54Mini`**, and **`Gpt54Nano`** are exported from the package for use with the OpenAI integration—check the version you installed for the exact set of named models.
+
+## Related
+
+<Cards>
+  <Card title="Core concepts" href="/docs/concepts" />
+  <Card title="OpenResponses compatibility" href="/docs/open-responses" />
+</Cards>

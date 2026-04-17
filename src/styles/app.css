@@ -9,3 +9,10 @@ html {
 html > body[data-scroll-locked] {
   margin-right: 0px !important;
 }
+
+/* Clerk TOC (curved rail + dot): tint active accent and inactive guides like the reference UI. */
+.dark #nd-toc,
+.dark [data-toc-popover] {
+  --color-fd-primary: #b3b3ff;
+  --color-fd-primary-foreground: #0f172a;
+}

@@ -1,0 +1,12 @@
+{
+  "title": "Mozaik",
+  "pages": [
+    "index",
+    "installation",
+    "quickstart",
+    "concepts",
+    "open-responses",
+    "context-engine",
+    "package-exports"
+  ]
+}

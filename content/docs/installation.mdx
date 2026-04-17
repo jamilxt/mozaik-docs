@@ -1,0 +1,45 @@
+---
+title: Installation
+description: Add @mozaik-ai/core to your project and configure provider credentials.
+icon: Download
+---
+
+## Package
+
+Install the published core library:
+
+```bash
+npm install @mozaik-ai/core
+```
+
+```bash
+yarn add @mozaik-ai/core
+```
+
+```bash
+pnpm add @mozaik-ai/core
+```
+
+The [npm package](https://www.npmjs.com/package/@mozaik-ai/core) is scoped as **`@mozaik-ai/core`**. Latest features and API surface follow the [`development`](https://github.com/jigjoy-ai/mozaik/tree/development) branch on GitHub; pin a version in production as you normally would.
+
+## Environment
+
+For OpenAI-backed runs, set your API key (the library uses the ecosystem’s usual conventions via dependencies such as `openai` and `dotenv`):
+
+```bash
+# .env
+OPENAI_API_KEY=your-openai-key-here
+```
+
+Place this in a `.env` file at your project root (or configure the environment in your host) so server-side code can read it securely. Do not commit secrets.
+
+## TypeScript
+
+Mozaik is written in TypeScript. Ensure your `tsconfig` has **`moduleResolution`** appropriate for modern packages (e.g. `"bundler"` or `"node16"` / `"nodenext"`) so imports resolve cleanly.
+
+## Next steps
+
+<Cards>
+  <Card title="Quickstart" href="/docs/quickstart" />
+  <Card title="Package exports" href="/docs/package-exports" />
+</Cards>

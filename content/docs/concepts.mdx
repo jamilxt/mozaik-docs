@@ -1,0 +1,74 @@
+---
+title: Core concepts
+description: Context, context items, repositories, and how model output fits in.
+icon: Layers
+---
+
+Mozaik centers on one idea: **everything the model sees and produces should be modeled as structured context**, not loose strings scattered across your codebase.
+
+## Context runtime
+
+The **context runtime** captures the essential LLM contract:
+
+> Given a structured **context**, produce a **response**.
+
+Implementations (such as **`OpenAIResponses`**) hide vendor-specific HTTP and wire formats while your application works with Mozaik’s domain types.
+
+## Context
+
+A **`Context`** is the full ordered history (and metadata) the model needs for the next inference step. You:
+
+- Create it with an id meaningful to your app (session, project, thread).
+- Append **input** items (user/developer messages, tool results, …).
+- After each model call, apply **output** items (assistant content, tool calls, reasoning, …) so the thread stays consistent.
+
+This makes multi-turn flows, branching, and replay easier than pushing raw strings through every layer.
+
+## ContextItem
+
+A **`ContextItem`** is one atomic piece of that history. The library provides concrete item types aligned with **OpenResponses**, for example:
+
+### Client items
+
+#### User Message 
+
+End-user text (or structured content, depending on how you build the item).
+
+#### DeveloperMessage 
+
+Developer or system instructions.
+
+#### FunctionCallOutput
+
+Result of executing a tool after the model requested a **`FunctionCall`**.
+
+### Model items
+
+#### ModelMessage
+
+Assistant-facing message content produced by the model.
+
+#### FunctionCall 
+
+A tool invocation requested by the model.
+
+#### Reasoning
+
+Opaque or structured reasoning segments when the provider exposes them.
+
+Together, these items form an ordered transcript you can persist, trim, or transform.
+
+## Persistence
+
+A **`ContextRepository`** defines how contexts are stored and loaded (e.g. **`InMemoryContextRepository`** for tests and demos). Your production app typically implements the same interface against Postgres, Redis, or object storage so you can **`save`** after each turn and **`getByProjectId`** (or similar) when a user returns.
+
+## Generative model types
+
+Around inference, Mozaik also exposes types such as **`GenerativeModel`**, **`InferenceRequest`**, **`InferenceResponse`**, **`Tool`**, and **token usage** helpers (**`TokenUsage`**, **`InputTokenDetails`**, **`OutputTokenDetails`**) so call sites stay typed end-to-end.
+
+## Next
+
+<Cards>
+  <Card title="Context engine (rules)" href="/docs/context-engine" />
+  <Card title="Package exports" href="/docs/package-exports" />
+</Cards>
