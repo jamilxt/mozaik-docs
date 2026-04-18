@@ -7,6 +7,7 @@ export function getRouter() {
     routeTree,
     defaultPreload: 'intent',
     scrollRestoration: true,
+    defaultPreloadStaleTime: 0,
     defaultNotFoundComponent: NotFound,
   });
 }
