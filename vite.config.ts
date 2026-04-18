@@ -15,18 +15,13 @@ export default defineConfig({
     tanstackStart({
       prerender: {
         enabled: true,
+        crawlLinks: true,
       },
     }),
     react(),
-    // please see https://tanstack.com/start/latest/docs/framework/react/guide/hosting#nitro for guides on hosting
-    nitro({
-      preset: 'vercel',
-    }),
+    nitro({}),
   ],
   resolve: {
     tsconfigPaths: true,
-    alias: {
-      tslib: 'tslib/tslib.es6.js',
-    },
   },
 });
