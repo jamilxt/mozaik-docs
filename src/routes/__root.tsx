@@ -19,7 +19,7 @@ export const Route = createRootRoute({
         title: 'Mozaik AI Docs',
       },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [],
   }),
   component: RootComponent,
 });
