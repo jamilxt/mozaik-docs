@@ -1,14 +1,7 @@
+/* Tailwind first, then fumadocs — same order in the inlined bundle. */
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
-
-html {
-  scrollbar-gutter: stable;
-}
-
-html > body[data-scroll-locked] {
-  margin-right: 0px !important;
-}
 
 /* Brand primary in docs chrome + article (sidebar active row, TOC, inline code chips). */
 .dark #nd-toc,
