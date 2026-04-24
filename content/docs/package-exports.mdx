@@ -1,15 +1,16 @@
 ---
 title: Package exports
-description: Main entry point and subpath typings for @mozaik-ai/core.
+description: Main entry point and typed exports for @mozaik-ai/core.
 icon: Box
 ---
 
-The primary API is exported from **`@mozaik-ai/core`**. The following reflects the public **`src/index.ts`** on the [`development`](https://github.com/jigjoy-ai/mozaik/tree/development) branch; your installed version may add or refine symbols—always check **`node_modules/@mozaik-ai/core`** for the exact set.
+The primary API is exported from **`@mozaik-ai/core`**. The table below reflects the public [`src/index.ts`](https://github.com/jigjoy-ai/mozaik/blob/development/src/index.ts) on the `development` branch; your installed version may add or refine symbols — always check `node_modules/@mozaik-ai/core` for the exact set.
 
 ## Main entry
 
 | Category | Exports |
-| -------- | ------- |
+| --- | --- |
+| **Agent framework** | `Agent`, `AgentRuntime`, `HookId`, `RuntimeContext`, `InferenceVisitor`, `AgentSociety` |
 | **Context runtime** | `Context`, `ContextItem`, `ContextRepository`, `InMemoryContextRepository` |
 | **Input items** | `UserMessage`, `DeveloperMessage`, `FunctionCallOutput` |
 | **Output items** | `ModelMessage`, `FunctionCall`, `Reasoning` |
@@ -21,16 +22,21 @@ Import example:
 
 ```ts
 import {
+  Agent,
+  AgentRuntime,
+  HookId,
   Context,
+  DeveloperMessage,
   UserMessage,
-  OpenAIResponses,
-  Gpt54,
+  Tool,
+  Gpt54Mini,
+  InMemoryContextRepository,
 } from '@mozaik-ai/core';
 ```
 
 ## Subpath typings
 
-The package **`package.json`** declares **`typesVersions`** entries for deeper paths (e.g. **`core`** and **`providers/openai`**). These are mainly for TypeScript resolution of internal layout when the published **`dist`** mirrors that structure—follow your editor’s jump-to-definition from the main exports first, then use subpaths only if your version documents them on npm.
+The package `package.json` declares `typesVersions` entries for deeper paths (e.g. `core` and `providers/openai`). These are mainly for TypeScript resolution of internal layout when the published `dist` mirrors that structure — follow your editor's jump-to-definition from the main exports first, then use subpaths only if your version documents them on npm.
 
 ## Source of truth
 

@@ -1,0 +1,42 @@
+---
+title: Architecture
+description: How AgentSociety, Agent, AgentRuntime, and AgentLoop fit together.
+icon: Layers
+---
+
+Mozaik is organized into four layers. Each layer owns a clear responsibility and talks only to the one below it, so you can opt in at whichever level of abstraction fits your app.
+
+<Mermaid chart={`graph TD
+  AgentSociety["AgentSociety (experimental)"] --> Agent
+  Agent --> AgentRuntime
+  AgentRuntime --> AgentLoop["AgentLoop (FSM + hooks)"]
+  AgentLoop --> OpenAIResponses["OpenAIResponses (OpenResponses adapter)"]
+  AgentLoop --> Context["Context + ContextItems"]
+`} />
+
+## Layers
+
+| Layer | Responsibility |
+| --- | --- |
+| **`AgentSociety`** | Runs multiple agents concurrently (experimental). |
+| **`Agent`** | Lifecycle callbacks, visitor hooks, high-level `run()`. |
+| **`AgentRuntime`** | Drives the loop, dispatches hooks, manages errors. |
+| **`AgentLoop` + `Context`** | FSM transitions and typed context model. |
+
+## How to choose a layer
+
+- **Prototyping or a single agent** — start with `Agent` + `AgentRuntime` ([Quickstart](/docs/quickstart)).
+- **Need observability without touching agent logic** — attach an [`InferenceVisitor`](/docs/agents#inferencevisitor).
+- **Custom per-step logic** — subclass [`Agent`](/docs/agents) or register hooks on [`AgentRuntime`](/docs/agent-loop#hooks).
+- **Multiple agents on a shared context** — graduate to [`AgentSociety`](/docs/agent-society).
+- **Direct, single-shot inference** — call [`OpenAIResponses`](/docs/open-responses) yourself.
+
+## What flows through the system
+
+At runtime, each layer produces and consumes structured `ContextItem`s. The loop appends model-produced items (`ModelMessage`, `FunctionCall`, `Reasoning`) back onto the same `Context` your app supplied, so persistence, replay, and multi-agent collaboration all work on the same vocabulary.
+
+<Cards>
+  <Card title="Agent loop & hooks" href="/docs/agent-loop" description="FSM diagram, Execution tracking, and lifecycle hooks." />
+  <Card title="Agents & visitors" href="/docs/agents" description="Subclass Agent and observe with InferenceVisitor." />
+  <Card title="AgentSociety" href="/docs/agent-society" description="Concurrent, non-blocking multi-agent execution." />
+</Cards>

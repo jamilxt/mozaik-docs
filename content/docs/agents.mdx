@@ -1,0 +1,127 @@
+---
+title: Agents & visitors
+description: Subclass Agent to customize behavior, or attach an InferenceVisitor to observe the lifecycle from the outside.
+icon: Bot
+---
+
+**`Agent`** wraps an **`AgentRuntime`** and pre-wires every lifecycle hook as an overridable method. You have two complementary ways to hook into a run:
+
+- **Subclass `Agent`** for logic that is part of the agent's identity.
+- **Attach an `InferenceVisitor`** for observability that should stay out of the agent itself.
+
+## Subclassing Agent
+
+Override any lifecycle method to customize behavior at a specific point:
+
+```ts
+import { Agent, AgentRuntime, RuntimeContext } from '@mozaik-ai/core';
+
+class MyAgent extends Agent {
+  constructor() {
+    super(new AgentRuntime());
+  }
+
+  async afterInference(context: RuntimeContext): Promise<void> {
+    console.log('Tokens used:', context.inferenceResponse?.tokenUsage);
+  }
+
+  async onError(context: RuntimeContext): Promise<void> {
+    console.error('Something went wrong:', context.error?.message);
+  }
+}
+
+const agent = new MyAgent();
+await agent.run('Summarize the latest news', model, context);
+```
+
+The overridable methods mirror the [hook catalog](/docs/agent-loop#hook-catalog): `beforeInference`, `afterInference`, `beforeFunctionCall`, `afterFunctionCall`, `beforeModelMessage`, `afterModelMessage`, `onError`.
+
+## InferenceVisitor
+
+`InferenceVisitor` is a **visitor interface** that lets you observe the inference lifecycle without modifying the agent. Attach it to any `Agent` instance via `setInferenceVisitor`:
+
+```ts
+import {
+  InferenceVisitor,
+  InferenceResponse,
+  RuntimeContext,
+} from '@mozaik-ai/core';
+
+class TelemetryVisitor implements InferenceVisitor {
+  async onStart(context: RuntimeContext): Promise<void> {
+    console.log('Agent started, execution:', context.execution.executionId);
+  }
+
+  async afterInference(response: InferenceResponse): Promise<void> {
+    console.log('Inference complete, tokens:', response.tokenUsage);
+  }
+}
+
+const agent = new MyAgent();
+agent.setInferenceVisitor(new TelemetryVisitor());
+```
+
+Use `InferenceVisitor` for concerns that should stay separate from agent logic: logging, telemetry, streaming responses to a UI, or recording usage metrics.
+
+### Subclass vs. visitor
+
+| If you're doing... | Use |
+| --- | --- |
+| Changing how the agent decides, routes, or recovers | Subclass `Agent`. |
+| Adding logs, metrics, tracing, UI streaming | Attach an `InferenceVisitor`. |
+| Temporary cross-cutting concerns wired per-run | Register hooks directly on `AgentRuntime`. |
+
+## Full example
+
+End-to-end: a tool-calling agent with hook observability.
+
+```ts
+import {
+  Agent,
+  AgentRuntime,
+  HookId,
+  Context,
+  DeveloperMessage,
+  Gpt54Mini,
+  InMemoryContextRepository,
+  Tool,
+} from '@mozaik-ai/core';
+
+const weatherTool = new Tool({
+  name: 'get_weather',
+  description: 'Get the current weather for a city',
+  parameters: {
+    type: 'object',
+    properties: { city: { type: 'string' } },
+    required: ['city'],
+  },
+  invoke: async ({ city }) => ({ temperature: '22°C', condition: 'sunny' }),
+});
+
+const runtime = new AgentRuntime();
+
+runtime.on(HookId.BEFORE_INFERENCE, async (ctx) => {
+  console.log(`[step ${ctx.execution.stepCount}] calling model...`);
+});
+
+runtime.on(HookId.AFTER_FUNCTION_CALL, async (ctx) => {
+  console.log('tool result:', ctx.functionCallOutput);
+});
+
+const agent = new Agent(runtime);
+
+const model = new Gpt54Mini([weatherTool]);
+const context = Context.create('demo').addItem(
+  DeveloperMessage.create('You are a weather assistant.'),
+);
+
+const repo = new InMemoryContextRepository();
+await repo.save(context);
+
+await agent.run("What's the weather like in Tokyo?", model, context);
+```
+
+<Cards>
+  <Card title="Agent loop & hooks" href="/docs/agent-loop" description="The FSM under the hood and every hook id." />
+  <Card title="AgentSociety" href="/docs/agent-society" description="Run multiple agents concurrently on a shared Context." />
+</Cards>

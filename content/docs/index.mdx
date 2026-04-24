@@ -1,25 +1,36 @@
 ---
 title: Introduction
-description: Mozaik is a TypeScript library for building, managing, and evolving LLM context.
+description: Mozaik is a TypeScript framework for building controllable, non-blocking AI agents.
 active: blue
 icon: Rocket
 ---
 
-Mozaik helps you build AI agent systems by turning model interactions into real objects and controlling them with reusable rules.
+**Mozaik** is a TypeScript framework for building non-blocking AI agents. It provides a structured **agent loop**, a **lifecycle hook system**, a typed **context model**, and an experimental **multi-agent runtime** — giving you full control over how agents think, act, and collaborate.
 
 ## Get started
 
 <Cards>
   <Card title="Installation" href="/docs/installation" description="Add the package and configure API keys." />
-  <Card title="Quickstart" href="/docs/quickstart" description="Build context, call a model, save and restore." />
-  <Card title="Core concepts" href="/docs/concepts" description="Context, items, repositories, and model output." />
+  <Card title="Quickstart" href="/docs/quickstart" description="Run an agent with hooks and a tool in a few lines." />
+  <Card title="Architecture" href="/docs/architecture" description="How AgentSociety, Agent, AgentRuntime, and AgentLoop fit together." />
 </Cards>
 
 ## Why Mozaik
 
-- **Context as data** — Messages, tool calls, reasoning traces, and outputs are first-class objects you can append, inspect, and serialize.
-- **Provider-oriented runtime** — A domain-centric inference layer (e.g. OpenAI Responses) sits behind a stable shape instead of scattering provider calls through your app.
-- **Context engineering** — Designed around problems like window overflow, bloated history, and multi-step / multi-agent flows.
+- **Agent loop as an FSM** — A finite state machine drives every execution through inference, tool calls, and final messages. Each step is observable and replayable.
+- **Lifecycle hooks** — Register `BEFORE_INFERENCE`, `AFTER_FUNCTION_CALL`, `ON_ERROR`, and more on any `AgentRuntime` for telemetry, guardrails, and streaming.
+- **Typed context model** — Messages, tool calls, reasoning traces, and outputs are first-class `ContextItem` objects you can append, inspect, and persist.
+- **Non-blocking multi-agent runtime** — `AgentSociety` runs agents concurrently on a shared `Context`, removing the sequential bottleneck typical of multi-agent frameworks.
+- **Provider-oriented** — `OpenAIResponses` implements the [OpenResponses](https://www.openresponses.org/) spec, so your domain types stay stable across providers.
+
+## Explore the framework
+
+<Cards>
+  <Card title="Agent loop & hooks" href="/docs/agent-loop" description="FSM states, Execution tracking, and the full HookId table." />
+  <Card title="Agents & visitors" href="/docs/agents" description="Subclass Agent, attach an InferenceVisitor, and wire tools." />
+  <Card title="AgentSociety" href="/docs/agent-society" description="Concurrent, non-blocking multi-agent execution (experimental)." />
+  <Card title="Core concepts" href="/docs/concepts" description="Context, ContextItems, repositories, and OpenResponses mapping." />
+</Cards>
 
 ## Resources
 

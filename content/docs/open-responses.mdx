@@ -4,22 +4,44 @@ description: How Mozaik maps to the OpenResponses specification for multi-provid
 icon: Globe
 ---
 
-Mozaik’s object model is designed to match **[OpenResponses](https://www.openresponses.org/)**, a shared way to describe LLM interactions across vendors: same conceptual **items** for context and responses, even when wire formats differ.
+Mozaik's object model is designed to match **[OpenResponses](https://www.openresponses.org/)**, a shared way to describe LLM interactions across vendors: the same conceptual **items** for context and responses, even when wire formats differ.
 
 ## Inputs and outputs
 
-- **Input (context)** — Client-supplied items such as **`user_message`**, **`developer_message`**, and **`function_call_output`** (tool results fed back to the model).
-- **Output (response)** — Model-produced items such as **`reasoning`**, **`function_call`**, and **`model_message`**.
+- **Input (context)** — Client-supplied items such as `UserMessage`, `DeveloperMessage`, and `FunctionCallOutput` (tool results fed back to the model).
+- **Output (response)** — Model-produced items such as `Reasoning`, `FunctionCall`, and `ModelMessage`.
 - **Streaming** — Items may arrive incrementally as **semantic events** (item-level updates), not only as raw token deltas.
 
 Mozaik turns that vocabulary into TypeScript classes you can construct, append, serialize, and store.
+
+## OpenAIResponses is the default provider
+
+`OpenAIResponses` implements the OpenResponses specification against the OpenAI Responses API. It is the **default provider used by `AgentRuntime`** and handles:
+
+- Serializing `ContextItem` objects to API-compatible input.
+- Deserializing model output into `ModelMessage`, `FunctionCall`, and `Reasoning` items.
+- Extracting token usage from the response.
+
+Most users never touch it directly — `agent.run(...)` goes through it automatically. You can still call it for **single-shot inference outside the agent loop**:
+
+```ts
+import { OpenAIResponses, InferenceRequest, Gpt54 } from '@mozaik-ai/core';
+
+const openaiResponses = new OpenAIResponses();
+const request = new InferenceRequest(new Gpt54(), context);
+const response = await openaiResponses.infer(request);
+
+context.applyModelOutput(response.contextItems);
+```
+
+Available models: `Gpt54`, `Gpt54Mini`, `Gpt54Nano`.
 
 ## Why it matters
 
 When your domain model follows a provider-agnostic spec:
 
 - Swapping or combining providers becomes a smaller change.
-- Persistence and replay stay stable—your database stores **context items**, not one-off JSON blobs per vendor.
+- Persistence and replay stay stable — your database stores **context items**, not one-off JSON blobs per vendor.
 - Tool use, reasoning traces, and assistant messages share one mental model.
 
 ## Learn more

@@ -1,32 +1,43 @@
 ---
 title: Context engine
 description: Rules, conditions, and control-flow helpers for evolving context beyond a single infer call.
-icon: Workflow
+icon: GitBranch
 ---
 
-Beyond “call the model once,” Mozaik includes a **context engine** for describing how **context** should evolve when certain **conditions** hold. This is useful for structured loops, guarded updates, and building higher-level workflows on top of the same **`Context`** primitives.
+<Callout type="info">
+  For most multi-step flows, the [agent loop](/docs/agent-loop) with [hooks](/docs/agent-loop#hooks) is the recommended path. Reach for the **context engine** when you need low-level, composable control flow that is independent of the agent runtime — for example, inside a custom `Tool`, a background job, or a compaction pipeline.
+</Callout>
+
+Beyond "call the model once," Mozaik includes a **context engine** for describing how **context** should evolve when certain **conditions** hold. This is useful for structured loops, guarded updates, and building higher-level workflows on top of the same **`Context`** primitives.
 
 ## Building blocks
 
 Exports from the main package include:
 
-- **`Condition`** / **`BaseCondition`** — Predicates over a candidate value (your design-time type is whatever you pass through the rule).
-- **`Action`** / **`AsyncAction`** — Synchronous or asynchronous transformations of that candidate.
-- **`Rule`** / **`AsyncRule`** — Pairs a condition with an action; **`apply`** runs the action when the condition is satisfied.
-- **`If`** — If the condition is satisfied, run the async action and return the result; otherwise return the candidate unchanged.
-- **`Loop`** — While the condition stays satisfied, repeatedly run the async action, threading the updated candidate through each iteration.
+| Type | Role |
+| --- | --- |
+| `Condition` / `BaseCondition` | Predicates over a candidate value. |
+| `Action` / `AsyncAction` | Synchronous or asynchronous transformations of that candidate. |
+| `Rule` / `AsyncRule` | Pairs a condition with an action; `apply` runs the action when the condition is satisfied. |
+| `If` | If the condition is satisfied, run the async action and return its result; otherwise return the candidate unchanged. |
+| `Loop` | While the condition stays satisfied, repeatedly run the async action, threading the updated candidate through each iteration. |
 
-These types are intentionally small composable pieces: you can wrap inference steps, persistence, compaction, or custom business logic inside **`AsyncAction`** implementations.
+These types are intentionally small composable pieces: you can wrap inference steps, persistence, compaction, or custom business logic inside `AsyncAction` implementations.
 
-## When to use this
+## When to use it
 
-Reach for the context engine when you need **explicit control flow** over context (e.g. “keep calling the model until a tool returns success” or “only summarize when token usage exceeds a threshold”) without encoding that logic only in imperative spaghetti.
+Reach for the context engine when you need **explicit control flow over context** without encoding that logic only in imperative spaghetti — for example:
+
+- "Keep calling a helper until a tool returns success."
+- "Only summarize when token usage exceeds a threshold."
+- "Apply a series of rewrites to a `Context` before persisting it."
 
 For the exact signatures and generic parameters, refer to the [source on GitHub](https://github.com/jigjoy-ai/mozaik/blob/development/src/core/context-engine/rule/rule.ts) for your installed version.
 
 ## See also
 
 <Cards>
+  <Card title="Agent loop & hooks" href="/docs/agent-loop" description="Most users want this first." />
   <Card title="Core concepts" href="/docs/concepts" />
   <Card title="Package exports" href="/docs/package-exports" />
 </Cards>
