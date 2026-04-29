@@ -8,30 +8,37 @@ Mozaik's object model is designed to match **[OpenResponses](https://www.openres
 
 ## Inputs and outputs
 
-- **Input (context)** — Client-supplied items such as `UserMessage`, `DeveloperMessage`, and `FunctionCallOutput` (tool results fed back to the model).
-- **Output (response)** — Model-produced items such as `Reasoning`, `FunctionCall`, and `ModelMessage`.
+- **Input (context)** — Client-supplied items such as `UserMessageItem`, `DeveloperMessageItem`, `SystemMessageItem`, and `FunctionCallOutputItem` (tool results fed back to the model).
+- **Output (response)** — Model-produced items such as `ReasoningItem`, `FunctionCallItem`, and `ModelMessageItem`.
 - **Streaming** — Items may arrive incrementally as **semantic events** (item-level updates), not only as raw token deltas.
 
-Mozaik turns that vocabulary into TypeScript classes you can construct, append, serialize, and store.
+Mozaik turns that vocabulary into TypeScript classes you can construct, append to a `ModelContext`, serialize, and store.
 
 ## OpenAIResponses is the default provider
 
-`OpenAIResponses` implements the OpenResponses specification against the OpenAI Responses API. It is the **default provider used by `AgentRuntime`** and handles:
+`OpenAIResponses` implements the OpenResponses specification against the OpenAI Responses API. It handles:
 
-- Serializing `ContextItem` objects to API-compatible input.
-- Deserializing model output into `ModelMessage`, `FunctionCall`, and `Reasoning` items.
+- Serializing `ContextItem` objects from a `ModelContext` to API-compatible input.
+- Deserializing model output into typed `ModelMessageItem`, `FunctionCallItem`, and `ReasoningItem` objects.
 - Extracting token usage from the response.
 
-Most users never touch it directly — `agent.run(...)` goes through it automatically. You can still call it for **single-shot inference outside the agent loop**:
+You typically reach for it in two places:
+
+1. **Inside an `InferenceRunner`** — wrap it and yield its `contextItems` so a `BaseAgentParticipant` can stream them into the environment. See the [Generators page](/docs/generators#custom-inferencerunner) for the pattern.
+2. **As a single-shot caller outside the environment** — when you just need an inference response for a `ModelContext`:
 
 ```ts
-import { OpenAIResponses, InferenceRequest, Gpt54 } from '@mozaik-ai/core';
+import {
+  OpenAIResponses,
+  InferenceRequest,
+  Gpt54,
+  ModelContext,
+} from '@mozaik-ai/core';
 
-const openaiResponses = new OpenAIResponses();
-const request = new InferenceRequest(new Gpt54(), context);
-const response = await openaiResponses.infer(request);
+const runtime = new OpenAIResponses();
+const context = ModelContext.create('demo');
 
-context.applyModelOutput(response.contextItems);
+const response = await runtime.infer(new InferenceRequest(new Gpt54(), context));
 ```
 
 Available models: `Gpt54`, `Gpt54Mini`, `Gpt54Nano`.
@@ -40,11 +47,11 @@ Available models: `Gpt54`, `Gpt54Mini`, `Gpt54Nano`.
 
 When your domain model follows a provider-agnostic spec:
 
-- Swapping or combining providers becomes a smaller change.
-- Persistence and replay stay stable — your database stores **context items**, not one-off JSON blobs per vendor.
-- Tool use, reasoning traces, and assistant messages share one mental model.
+- Swapping or combining providers becomes a smaller change — you implement a new `InferenceRunner`, not a new domain model.
+- Persistence and replay stay stable — your database stores **typed context items**, not one-off JSON blobs per vendor.
+- Tool use, reasoning traces, and assistant messages share one mental model across the whole environment.
 
 ## Learn more
 
 - [OpenResponses — openresponses.org](https://www.openresponses.org/)
-- [Mozaik repository](https://github.com/jigjoy-ai/mozaik/tree/development)
+- [Mozaik repository](https://github.com/jigjoy-ai/mozaik)

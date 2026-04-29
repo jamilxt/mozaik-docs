@@ -20,11 +20,11 @@ yarn add @mozaik-ai/core
 pnpm add @mozaik-ai/core
 ```
 
-The [npm package](https://www.npmjs.com/package/@mozaik-ai/core) is scoped as **`@mozaik-ai/core`**. Latest features and API surface follow the [`development`](https://github.com/jigjoy-ai/mozaik/tree/development) branch on GitHub; pin a version in production as you normally would.
+The [npm package](https://www.npmjs.com/package/@mozaik-ai/core) is scoped as **`@mozaik-ai/core`**. The latest API surface follows the [Mozaik repository](https://github.com/jigjoy-ai/mozaik) on GitHub; pin a version in production as you normally would.
 
 ## Environment
 
-For OpenAI-backed runs, set your API key (the library uses the ecosystem’s usual conventions via dependencies such as `openai` and `dotenv`):
+For OpenAI-backed runs, set your API key:
 
 ```bash
 # .env
@@ -35,11 +35,11 @@ Place this in a `.env` file at your project root (or configure the environment i
 
 ## TypeScript
 
-Mozaik is written in TypeScript. Ensure your `tsconfig` has **`moduleResolution`** appropriate for modern packages (e.g. `"bundler"` or `"node16"` / `"nodenext"`) so imports resolve cleanly.
+Mozaik is written in TypeScript. Make sure your `tsconfig` uses a modern `moduleResolution` (e.g. `"bundler"`, `"node16"`, or `"nodenext"`) so package imports resolve cleanly.
 
 ## Next steps
 
 <Cards>
-  <Card title="Quickstart" href="/docs/quickstart" />
-  <Card title="Package exports" href="/docs/package-exports" />
+  <Card title="Quickstart" href="/docs/quickstart" description="Run an environment with a human and an agent participant." />
+  <Card title="Package exports" href="/docs/package-exports" description="Every symbol exported from @mozaik-ai/core." />
 </Cards>

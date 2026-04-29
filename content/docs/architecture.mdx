@@ -1,42 +1,51 @@
 ---
 title: Architecture
-description: How AgentSociety, Agent, AgentRuntime, and AgentLoop fit together.
+description: Environment, participants, capabilities, and generators — how the four pieces fit together.
 icon: Layers
 ---
 
-Mozaik is organized into four layers. Each layer owns a clear responsibility and talks only to the one below it, so you can opt in at whichever level of abstraction fits your app.
+Mozaik has four moving parts. They are deliberately decoupled so you can change one without touching the others.
 
-<Mermaid chart={`graph TD
-  AgentSociety["AgentSociety (experimental)"] --> Agent
-  Agent --> AgentRuntime
-  AgentRuntime --> AgentLoop["AgentLoop (FSM + hooks)"]
-  AgentLoop --> OpenAIResponses["OpenAIResponses (OpenResponses adapter)"]
-  AgentLoop --> Context["Context + ContextItems"]
+<Mermaid chart={`flowchart LR
+    Human[BaseHumanParticipant] -->|streamInput| Env(("AgenticEnvironment"))
+    Agent[BaseAgentParticipant] -->|"runInference / executeFunctionCall"| Env
+    Observer[Custom Participant] -->|join| Env
+    Env -->|onContextItem| Human
+    Env -->|onContextItem| Agent
+    Env -->|onContextItem| Observer
 `} />
 
-## Layers
+## The four pieces
 
-| Layer | Responsibility |
+| Piece | Responsibility |
 | --- | --- |
-| **`AgentSociety`** | Runs multiple agents concurrently (experimental). |
-| **`Agent`** | Lifecycle callbacks, visitor hooks, high-level `run()`. |
-| **`AgentRuntime`** | Drives the loop, dispatches hooks, manages errors. |
-| **`AgentLoop` + `Context`** | FSM transitions and typed context model. |
+| **`AgenticEnvironment`** | A broadcast bus. Receives items via `deliverContextItem` and fans them out to every joined participant's `onContextItem` callback. No central scheduler. |
+| **`Participant`** | The single abstraction for humans, agents, observers, and tools. Joins an environment and reacts to items via `onContextItem(source, item)`. |
+| **Capabilities** | What a participant can *produce*. `InputCapable` streams input items; `InferenceCapable` streams model output; `FunctionCallCapable` streams tool outputs. Capability methods are **non-blocking** — they return `Promise<void>` and emit items in the background. |
+| **Generators** | The pluggable I/O behind the capabilities: `InputItemSource`, `InferenceRunner`, `FunctionCallRunner`. Swap any of them without changing the participant or the environment. |
 
-## How to choose a layer
+## How items flow
 
-- **Prototyping or a single agent** — start with `Agent` + `AgentRuntime` ([Quickstart](/docs/quickstart)).
-- **Need observability without touching agent logic** — attach an [`InferenceVisitor`](/docs/agents#inferencevisitor).
-- **Custom per-step logic** — subclass [`Agent`](/docs/agents) or register hooks on [`AgentRuntime`](/docs/agent-loop#hooks).
-- **Multiple agents on a shared context** — graduate to [`AgentSociety`](/docs/agent-society).
-- **Direct, single-shot inference** — call [`OpenAIResponses`](/docs/open-responses) yourself.
+At runtime, every layer trades the same currency: typed `ContextItem`s.
 
-## What flows through the system
+1. A capability method (`streamInput`, `runInference`, `executeFunctionCall`) is invoked on a participant.
+2. The participant's generator yields items as they are produced.
+3. Each item is delivered to the environment via `deliverContextItem(initiator, item)`.
+4. The environment dispatches `onContextItem(source, item)` on every other participant — synchronously and without awaiting them, so a slow listener never blocks producers or other listeners.
+5. Listening participants choose to **observe**, **react** (by triggering their own capabilities), or **ignore**.
 
-At runtime, each layer produces and consumes structured `ContextItem`s. The loop appends model-produced items (`ModelMessage`, `FunctionCall`, `Reasoning`) back onto the same `Context` your app supplied, so persistence, replay, and multi-agent collaboration all work on the same vocabulary.
+Because each capability invocation is a fresh promise wrapping an async iterable, multiple participants can produce items into the same environment **concurrently** without any of them blocking on another.
+
+## How to choose a starting point
+
+- **Single agent reacting to user input** — start with [`BaseHumanParticipant`](/docs/participants#basehumanparticipant) + [`BaseAgentParticipant`](/docs/participants#baseagentparticipant) and the [Quickstart](/docs/quickstart).
+- **Add observability without changing agent logic** — add a [passive observer](/docs/participants#passive-observer) that just logs in `onContextItem`.
+- **Multi-agent collaboration** — `join()` more `Participant`s. They all see the same items in real time and can react independently.
+- **Custom input, model, or tool execution** — build a [generator](/docs/generators) and pass it into `BaseAgentParticipant`.
+- **Direct, single-shot inference** — call [`OpenAIResponses`](/docs/open-responses) yourself with a `ModelContext`.
 
 <Cards>
-  <Card title="Agent loop & hooks" href="/docs/agent-loop" description="FSM diagram, Execution tracking, and lifecycle hooks." />
-  <Card title="Agents & visitors" href="/docs/agents" description="Subclass Agent and observe with InferenceVisitor." />
-  <Card title="AgentSociety" href="/docs/agent-society" description="Concurrent, non-blocking multi-agent execution." />
+  <Card title="Agentic environment" href="/docs/agentic-environment" description="The broadcast bus, join, start, and delivery semantics." />
+  <Card title="Participants" href="/docs/participants" description="Capabilities, BaseHumanParticipant, BaseAgentParticipant, observer and reactive patterns." />
+  <Card title="Generators" href="/docs/generators" description="InputItemSource, InferenceRunner, FunctionCallRunner." />
 </Cards>

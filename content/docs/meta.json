@@ -5,12 +5,11 @@
     "installation",
     "quickstart",
     "architecture",
-    "agent-loop",
-    "agents",
-    "agent-society",
+    "agentic-environment",
+    "participants",
+    "generators",
     "concepts",
     "open-responses",
-    "context-engine",
     "package-exports"
   ]
 }

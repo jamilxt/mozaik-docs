@@ -1,45 +1,47 @@
 ---
 title: Introduction
-description: Mozaik is a TypeScript framework for building controllable, non-blocking AI agents.
+description: Mozaik is a TypeScript framework for building non-blocking AI agents that share an agentic environment.
 active: blue
 icon: Rocket
 ---
 
-**Mozaik** is a TypeScript framework for building non-blocking AI agents. It provides a structured **agent loop**, a **lifecycle hook system**, a typed **context model**, and an experimental **multi-agent runtime** — giving you full control over how agents think, act, and collaborate.
+**Mozaik** is a TypeScript framework for building AI agents that share an **agentic environment** instead of being orchestrated through rigid pipelines.
+
+Humans, agents, observers, and tools are all `Participant`s of the same `AgenticEnvironment`. Each participant runs **non-blocking** and streams typed `ContextItem`s into the environment. Every other participant sees those items in real time and can react, intercept, or stay silent — without any central scheduler.
 
 ## Get started
 
 <Cards>
-  <Card title="Installation" href="/docs/installation" description="Add the package and configure API keys." />
-  <Card title="Quickstart" href="/docs/quickstart" description="Run an agent with hooks and a tool in a few lines." />
-  <Card title="Architecture" href="/docs/architecture" description="How AgentSociety, Agent, AgentRuntime, and AgentLoop fit together." />
+  <Card title="Installation" href="/docs/installation" description="Add @mozaik-ai/core and configure your API key." />
+  <Card title="Quickstart" href="/docs/quickstart" description="Spin up an environment with a human and an agent participant." />
+  <Card title="Architecture" href="/docs/architecture" description="How environment, participants, capabilities, and generators fit together." />
 </Cards>
 
 ## Why Mozaik
 
-- **Agent loop as an FSM** — A finite state machine drives every execution through inference, tool calls, and final messages. Each step is observable and replayable.
-- **Lifecycle hooks** — Register `BEFORE_INFERENCE`, `AFTER_FUNCTION_CALL`, `ON_ERROR`, and more on any `AgentRuntime` for telemetry, guardrails, and streaming.
-- **Typed context model** — Messages, tool calls, reasoning traces, and outputs are first-class `ContextItem` objects you can append, inspect, and persist.
-- **Non-blocking multi-agent runtime** — `AgentSociety` runs agents concurrently on a shared `Context`, removing the sequential bottleneck typical of multi-agent frameworks.
-- **Provider-oriented** — `OpenAIResponses` implements the [OpenResponses](https://www.openresponses.org/) spec, so your domain types stay stable across providers.
+- **Non-blocking participants** — Capability methods return `Promise<void>` and stream items into the environment as they are produced. No participant ever blocks another, even on a slow model call or a long-running tool.
+- **Shared agentic environment** — `AgenticEnvironment` is a broadcast bus, not a pipeline. There is no central scheduler deciding who runs next; participants `join()` and react to whatever flows through.
+- **Reaction over orchestration** — A single `onContextItem(source, item)` intercept lets a participant observe, react, or stay silent. Add a critic, a logger, or a guardrail without touching existing participants.
+- **Composable generators** — Swap `InputItemSource`, `InferenceRunner`, and `FunctionCallRunner` to change how input is produced, how the model is called, and how tools are resolved — without changing the participant contract.
+- **OpenResponses-aligned types** — `ContextItem` mirrors the [OpenResponses](https://www.openresponses.org/) vocabulary, so your domain types stay stable across providers.
 
 ## Explore the framework
 
 <Cards>
-  <Card title="Agent loop & hooks" href="/docs/agent-loop" description="FSM states, Execution tracking, and the full HookId table." />
-  <Card title="Agents & visitors" href="/docs/agents" description="Subclass Agent, attach an InferenceVisitor, and wire tools." />
-  <Card title="AgentSociety" href="/docs/agent-society" description="Concurrent, non-blocking multi-agent execution (experimental)." />
-  <Card title="Core concepts" href="/docs/concepts" description="Context, ContextItems, repositories, and OpenResponses mapping." />
+  <Card title="Agentic environment" href="/docs/agentic-environment" description="The broadcast bus that fans every item out to every subscriber." />
+  <Card title="Participants" href="/docs/participants" description="Capabilities, BaseHumanParticipant, BaseAgentParticipant, observers, and reactive agents." />
+  <Card title="Generators" href="/docs/generators" description="Customize input, inference, and tool execution end-to-end." />
+  <Card title="Core concepts" href="/docs/concepts" description="ModelContext, ContextItem taxonomy, and persistence." />
 </Cards>
 
 ## Resources
 
 <Cards>
-  <Card title="Mozaik on GitHub" href="https://github.com/jigjoy-ai/mozaik/tree/development" description="Source, issues, and development branch." />
+  <Card title="Mozaik on GitHub" href="https://github.com/jigjoy-ai/mozaik" description="Source, issues, and releases." />
   <Card title="@mozaik-ai/core on npm" href="https://www.npmjs.com/package/@mozaik-ai/core" description="Published package and versions." />
-  <Card title="OpenResponses" href="https://www.openresponses.org/" description="Unified multi-provider LLM interface spec." />
+  <Card title="OpenResponses" href="https://www.openresponses.org/" description="Provider-agnostic LLM interface spec." />
 </Cards>
 
 ## License
 
-Mozaik is released under the [MIT License](https://github.com/jigjoy-ai/mozaik/blob/development/LICENSE) by the [JigJoy](https://jigjoy.io/) team.
+Mozaik is released under the MIT License by the [JigJoy](https://jigjoy.io/) team.

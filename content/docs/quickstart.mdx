@@ -1,74 +1,68 @@
 ---
 title: Quickstart
-description: Run an Agent with hooks and a tool in a few lines, end-to-end.
+description: Spin up an AgenticEnvironment, join a human and an agent participant, and produce items concurrently.
 icon: Zap
 ---
 
-This walkthrough mirrors the example in the [Mozaik README](https://github.com/jigjoy-ai/mozaik/blob/development/README.md#full-example): define a **tool**, wire an **`AgentRuntime`** with hooks, and call **`agent.run(...)`** on a typed **`Context`**.
+This walkthrough mirrors the example in the [Mozaik README](https://github.com/jigjoy-ai/mozaik#non-blocking-participants): create an `AgenticEnvironment`, `join` a `BaseHumanParticipant` and a `BaseAgentParticipant`, and trigger their capabilities so they produce items into the environment in parallel.
 
 ## Full example
 
 ```ts
 import {
-  Agent,
-  AgentRuntime,
-  HookId,
-  Context,
-  DeveloperMessage,
+  AgenticEnvironment,
+  BaseAgentParticipant,
+  BaseHumanParticipant,
   Gpt54Mini,
-  InMemoryContextRepository,
-  Tool,
+  ModelContext,
 } from '@mozaik-ai/core';
 
-const weatherTool = new Tool({
-  name: 'get_weather',
-  description: 'Get the current weather for a city',
-  parameters: {
-    type: 'object',
-    properties: { city: { type: 'string' } },
-    required: ['city'],
-  },
-  invoke: async ({ city }) => ({ temperature: '22°C', condition: 'sunny' }),
-});
+const environment = new AgenticEnvironment();
 
-const runtime = new AgentRuntime();
-
-runtime.on(HookId.BEFORE_INFERENCE, async (ctx) => {
-  console.log(`[step ${ctx.execution.stepCount}] calling model...`);
-});
-
-runtime.on(HookId.AFTER_FUNCTION_CALL, async (ctx) => {
-  console.log('tool result:', ctx.functionCallOutput);
-});
-
-const agent = new Agent(runtime);
-
-const model = new Gpt54Mini([weatherTool]);
-const context = Context.create('demo').addItem(
-  DeveloperMessage.create('You are a weather assistant.'),
+const human = new BaseHumanParticipant(humanInputSource);
+const agent = new BaseAgentParticipant(
+  agentInputSource,
+  inferenceRunner,
+  functionCallRunner,
 );
 
-const repo = new InMemoryContextRepository();
-await repo.save(context);
+human.join(environment);
+agent.join(environment);
 
-await agent.run("What's the weather like in Tokyo?", model, context);
+environment.start();
+
+const context = ModelContext.create('demo');
+const model = new Gpt54Mini();
+
+// Both participants produce items in parallel — neither awaits the other.
+human.streamInput(environment);
+agent.runInference(environment, context, model);
 ```
 
 ## What this is doing
 
-1. **`Tool`** — Describes a capability the model can invoke. Mozaik hands the tool's JSON schema to the provider and runs `invoke` when the model emits a `FunctionCall`.
-2. **`AgentRuntime`** — Orchestrates the agent loop. Register callbacks with `runtime.on(HookId.X, cb)` to observe every state transition.
-3. **`Agent`** — A thin wrapper around a runtime with overridable lifecycle methods. See [Agents & visitors](/docs/agents) for subclassing patterns.
-4. **`Context.create(projectId)`** — Allocates an empty context keyed by your own id (conversation, session, project). Append `DeveloperMessage` / `UserMessage` items as you go.
-5. **`agent.run(userInput, model, context)`** — Drives the loop until a final `ModelMessage` is produced (or an error is surfaced through `HookId.ON_ERROR`).
-6. **`InMemoryContextRepository`** — Handy for demos; implement `ContextRepository` yourself for Postgres, Redis, S3, etc.
+1. **`AgenticEnvironment`** — A broadcast bus for `ContextItem`s. Once started, it fans every delivered item out to every joined participant's `onContextItem` callback.
+2. **`BaseHumanParticipant`** — Wraps an `InputItemSource` so it can stream user/developer/system messages into the environment as they arrive.
+3. **`BaseAgentParticipant`** — Wraps an `InputItemSource`, an `InferenceRunner`, and a `FunctionCallRunner`. Each capability streams its output items back into the environment.
+4. **`ModelContext.create(projectId)`** — Allocates an empty context keyed by your own id (conversation, session, project). Participants typically append delivered items to the context they reason over.
+5. **`human.streamInput` / `agent.runInference`** — Capability methods. They return `Promise<void>` immediately and stream items in the background, so neither call blocks the other.
 
-## What happens under the hood
+## Where items go
 
-The loop is a finite state machine: the runtime calls the model, handles any requested `FunctionCall`s by executing their tools, feeds results back as `FunctionCallOutput`, and terminates on the first `ModelMessage`. The full diagram and hook catalog live on the next page.
+Every item produced by any participant — a `UserMessageItem` from the human, a `ReasoningItem` or `ModelMessageItem` from the agent, a `FunctionCallItem` triggering a tool — is delivered to every joined participant via `onContextItem(source, item)`. New behaviors are added by **joining another participant**, not by editing the existing ones.
+
+## What you'll need
+
+The example assumes you already have:
+
+- An `InputItemSource` that yields the user/developer/system messages your app produces.
+- An `InferenceRunner` that calls the model and yields `ReasoningItem` / `FunctionCallItem` / `ModelMessageItem`.
+- A `FunctionCallRunner` that resolves a `FunctionCallItem` against your tools and yields a `FunctionCallOutputItem`.
+
+Implementations for all three are covered on the [Generators](/docs/generators) page.
 
 <Cards>
-  <Card title="Agent loop & hooks" href="/docs/agent-loop" description="FSM diagram, Execution object, and the full HookId table." />
-  <Card title="Agents & visitors" href="/docs/agents" description="Subclass Agent and attach an InferenceVisitor for telemetry." />
-  <Card title="Core concepts" href="/docs/concepts" description="Context, ContextItems, and persistence." />
+  <Card title="Agentic environment" href="/docs/agentic-environment" description="The broadcast bus and how participants join, react, and emit." />
+  <Card title="Participants" href="/docs/participants" description="Capabilities, observer and reactive agent patterns." />
+  <Card title="Generators" href="/docs/generators" description="Build the InputItemSource / InferenceRunner / FunctionCallRunner this example uses." />
 </Cards>
