@@ -1,59 +1,39 @@
 ---
 title: Generators
-description: Swap how input is produced, how the model is called, and how tools are resolved — without changing the participant or the environment.
+description: Swap how messages are produced, how the model is called, and how tools are resolved — without changing the participant or the environment.
 icon: Cog
 ---
 
-`BaseAgentParticipant` and `BaseHumanParticipant` are deliberately thin shells around three generator interfaces. Swap any of them to change *how* items are produced without touching the environment, the participants, or any consumers.
+`BaseAgentParticipant` and `BaseHumanParticipant` are deliberately thin shells around three generator interfaces. Swap any of them to change *how* events are produced without touching the environment, the participants, or any consumers.
 
 | Interface | Used by | Yields |
 | --- | --- | --- |
-| `InputItemSource` | `BaseHumanParticipant`, `BaseAgentParticipant` | `UserMessageItem`, `DeveloperMessageItem`, `SystemMessageItem` |
+| `InputStream` | `BaseHumanParticipant`, `BaseAgentParticipant` | `string` (messages) |
 | `InferenceRunner` | `BaseAgentParticipant` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem` |
 | `FunctionCallRunner` | `BaseAgentParticipant` | `FunctionCallOutputItem` |
 
-All three are `AsyncIterable`-shaped: they `yield` items as they become available, and the participant streams those items into the environment one-by-one.
+All three are `AsyncIterable`-shaped: they `yield` values as they become available, and the participant streams them into the environment one-by-one.
 
-## Custom InputItemSource
+## Custom InputStream
 
-Anything that can produce client items over time can be an `InputItemSource`. Here is a pushable in-memory queue:
+An `InputStream` produces messages as plain strings. Each yielded string is delivered to other participants through `onMessage(message: string)`.
 
 ```ts
-import {
-  InputItemSource,
-  UserMessageItem,
-  DeveloperMessageItem,
-  SystemMessageItem,
-} from '@mozaik-ai/core';
+import { InputStream } from '@mozaik-ai/core';
 
-type InputItem = UserMessageItem | DeveloperMessageItem | SystemMessageItem;
-
-export class QueueInputSource implements InputItemSource {
-  private readonly queue: InputItem[] = [];
-  private resolveNext?: () => void;
-
-  push(item: InputItem) {
-    this.queue.push(item);
-    this.resolveNext?.();
-    this.resolveNext = undefined;
-  }
-
-  async *stream(signal?: AbortSignal): AsyncIterable<InputItem> {
-    while (!signal?.aborted) {
-      while (this.queue.length > 0) {
-        yield this.queue.shift()!;
-      }
-      await new Promise<void>((resolve) => (this.resolveNext = resolve));
-    }
+export class HelloInputStream implements InputStream {
+  async *stream(): AsyncIterable<string> {
+    yield 'Hello';
+    yield 'World';
   }
 }
 ```
 
-Use the same shape for stdin, websockets, an HTTP queue, or anything that produces user/developer/system messages over time.
+Use the same shape for stdin, websockets, an HTTP queue, or anything that produces user messages over time.
 
 ## Custom InferenceRunner
 
-Wrap any model runtime — including `OpenAIResponses` — and decide how its output becomes a stream of items. Here we expand a single `InferenceResponse` into per-item delivery:
+Wrap any model runtime — including `OpenAIResponses` — and decide how its output becomes a stream of items. An `InferenceRunner` can yield `ReasoningItem`, `FunctionCallItem`, and `ModelMessageItem`.
 
 ```ts
 import {
@@ -89,7 +69,7 @@ Replace the body with a streaming runtime and items will flow into the environme
 
 ## Custom FunctionCallRunner
 
-Resolve a `FunctionCallItem` against a tool registry and yield its output:
+A `FunctionCallRunner` resolves a `FunctionCallItem` against your tools and yields its output.
 
 ```ts
 import {
@@ -125,7 +105,7 @@ Drop the three generators into `BaseAgentParticipant` and join the environment:
 import { BaseAgentParticipant, AgenticEnvironment } from '@mozaik-ai/core';
 
 const agent = new BaseAgentParticipant(
-  new QueueInputSource(),
+  new HelloInputStream(),
   new OpenAIInferenceRunner(),
   new ToolRegistryFunctionCallRunner(tools),
 );
@@ -137,6 +117,6 @@ You now own input, inference, and tool execution end-to-end while keeping the sa
 
 <Cards>
   <Card title="Participants" href="/docs/participants" description="How BaseAgentParticipant uses the three generators." />
-  <Card title="Agentic environment" href="/docs/agentic-environment" description="Where the items end up." />
+  <Card title="Agentic environment" href="/docs/agentic-environment" description="Where the events end up." />
   <Card title="OpenResponses" href="/docs/open-responses" description="Use OpenAIResponses inside an InferenceRunner." />
 </Cards>

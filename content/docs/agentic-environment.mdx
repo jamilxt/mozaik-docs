@@ -1,20 +1,20 @@
 ---
 title: Agentic environment
-description: A broadcast bus for typed context items. No central scheduler — participants react to whatever flows through.
+description: An event-driven bus for messages and typed context items. No central scheduler — reactive agents react to whatever flows through.
 icon: Network
 ---
 
-`AgenticEnvironment` is the heart of Mozaik. It is a **broadcast bus for typed `ContextItem`s**, not a pipeline. Participants `join()` it, capability methods stream items into it, and every joined participant sees every item via its `onContextItem(source, item)` callback.
+`AgenticEnvironment` is the heart of Mozaik. It is an **event bus**, not a pipeline. Participants `join()` it, capability methods stream events into it, and every joined participant sees every event through its **typed handlers**.
 
-There is **no central scheduler**. The environment does not decide who runs next, who is allowed to speak, or in what order. Behavior emerges from the participants' reactions to delivered items.
+There is **no central scheduler**. The environment does not decide who runs next, who is allowed to speak, or in what order. Behavior emerges from how participants react to delivered events.
 
 <Mermaid chart={`flowchart LR
     Human[BaseHumanParticipant] -->|streamInput| Env(("AgenticEnvironment"))
     Agent[BaseAgentParticipant] -->|"runInference / executeFunctionCall"| Env
     Observer[Custom Participant] -->|join| Env
-    Env -->|onContextItem| Human
-    Env -->|onContextItem| Agent
-    Env -->|onContextItem| Observer
+    Env -->|"onMessage / onExternal*"| Human
+    Env -->|"onFunctionCall / onReasoning / ..."| Agent
+    Env -->|"onExternal*"| Observer
 `} />
 
 ## Lifecycle
@@ -29,7 +29,7 @@ agent.join(environment);
 
 environment.start();
 
-// ...participants stream items...
+// ...participants stream events...
 
 environment.stop();
 ```
@@ -37,59 +37,60 @@ environment.stop();
 | Call | Effect |
 | --- | --- |
 | `new AgenticEnvironment()` | Creates an empty environment with no participants. |
-| `participant.join(environment)` | Registers the participant. From now on it will receive every item via `onContextItem`. |
-| `environment.start()` | Opens the bus for delivery. Capability calls before this point are typically buffered or no-ops, depending on the participant. |
-| `environment.deliverContextItem(initiator, item)` | Fans the item out to every joined participant's `onContextItem`. Usually called for you by `deliverStream` while a capability is running. |
+| `participant.join(environment)` | Registers the participant. From now on it will receive every event through its typed handlers. |
+| `environment.start()` | Opens the bus for delivery. |
 | `environment.stop()` | Shuts the bus down. |
+
+## Typed handlers
+
+Each participant exposes one handler per event type. Every handler defaults to a no-op — override only the ones you care about.
+
+| Handler | Triggered when… |
+| --- | --- |
+| `onMessage` | any participant sends a message |
+| `onFunctionCall` | its own inference returns a function call |
+| `onExternalFunctionCall` | another agent's inference returns a function call |
+| `onFunctionCallOutput` | its own function call runner returns a result |
+| `onExternalFunctionCallOutput` | another agent's function call runner returns a result |
+| `onReasoning` | its own inference returns a reasoning item |
+| `onExternalReasoning` | another agent's inference returns a reasoning item |
+| `onModelMessage` | its own inference returns an assistant message |
+| `onExternalModelMessage` | another agent's inference returns an assistant message |
+
+The split between **self** handlers (`onFunctionCall`, `onReasoning`, `onModelMessage`, `onFunctionCallOutput`) and **`onExternal*`** handlers means a participant can encode "act on my own outputs" separately from "observe others", without inspecting `source` by hand.
+
+## What flows on the bus
+
+Two kinds of events:
+
+- **Messages** — plain `string`s, used for conversational input/output. Delivered via `onMessage(message: string)`.
+- **`ContextItem`s** — typed model internals. Delivered via their dedicated handlers:
+  - `FunctionCallItem` → `onFunctionCall` / `onExternalFunctionCall`
+  - `FunctionCallOutputItem` → `onFunctionCallOutput` / `onExternalFunctionCallOutput`
+  - `ReasoningItem` → `onReasoning` / `onExternalReasoning`
+  - `ModelMessageItem` → `onModelMessage` / `onExternalModelMessage`
 
 ## Fan-out semantics
 
-When a participant produces an item, the environment dispatches `onContextItem(source, item)` on every joined participant **synchronously and without awaiting them**. Two practical consequences:
+When a participant produces a message or context item, the environment dispatches the matching handler on every joined participant **synchronously and without awaiting them**. Two practical consequences:
 
-- **A slow listener cannot block producers.** Even if a logger or a downstream agent is busy, the environment keeps fanning out items.
-- **Multiple capabilities can produce items into the same environment concurrently.** Each capability call is a fresh promise wrapping an async iterable, and items are streamed in via `deliverStream` one at a time.
+- **A slow listener cannot block producers.** Even if a logger or a downstream agent is busy, the environment keeps fanning out events.
+- **Multiple capabilities can produce events into the same environment concurrently.** Each capability call is a fresh promise wrapping an async iterable, and events are streamed in as they arrive.
 
 ```ts
-// Both participants produce items in parallel — neither awaits the other.
+// Both participants produce events in parallel — neither awaits the other.
 human.streamInput(environment);
 agent.runInference(environment, context, model);
 ```
 
-## How items get into the environment
-
-Capability methods on participants do not return their items — they stream them. Internally, every capability is wrapped with the `deliverStream` helper, which pulls items from an `AsyncIterable` and forwards each one to the environment:
-
-```ts
-export async function deliverStream<T extends ContextItem>(
-  environment: AgenticEnvironment,
-  initiator: Participant,
-  stream: AsyncIterable<T>,
-): Promise<void> {
-  for await (const item of stream) {
-    await environment.deliverContextItem(initiator, item);
-  }
-}
-```
-
-This is what makes the system non-blocking: as soon as the underlying generator yields, the item is on the bus and every other participant sees it.
-
-## What flows on the bus
-
-Every item dispatched via `onContextItem` is a typed [`ContextItem`](/docs/concepts):
-
-- **Client-produced** — `UserMessageItem`, `DeveloperMessageItem`, `SystemMessageItem`, `FunctionCallOutputItem`
-- **Model-produced** — `ModelMessageItem`, `FunctionCallItem`, `ReasoningItem`
-
-Participants discriminate between them with `instanceof` (and, for messages, the `role` field) inside `onContextItem`.
-
 ## What the environment is not
 
-- It is **not an FSM**. There are no states, no transitions, no `before` / `after` hooks. The only intercept point is `onContextItem`.
+- It is **not an FSM**. There are no states, no transitions, no `before` / `after` hooks. The only intercept points are the typed handlers.
 - It is **not an orchestrator**. It does not decide whose turn it is. If you want a turn-taking convention, encode it in the participants' reactions.
-- It is **not a queue**. Items are delivered as they are produced; backpressure, if any, must be implemented inside a participant.
+- It is **not a queue**. Events are delivered as they are produced; backpressure, if any, must be implemented inside a participant.
 
 <Cards>
   <Card title="Participants" href="/docs/participants" description="Capabilities, observer and reactive agent patterns." />
+  <Card title="Reactive Agent" href="/docs/reactive-agent" description="What a reactive agent is and how to build one with Mozaik." />
   <Card title="Generators" href="/docs/generators" description="Customize how input, inference, and tool outputs are produced." />
-  <Card title="Core concepts" href="/docs/concepts" description="ModelContext and the ContextItem taxonomy." />
 </Cards>

@@ -1,14 +1,23 @@
 ---
 title: Core concepts
-description: ModelContext, the ContextItem taxonomy, and persistence.
+description: Messages, ContextItems, ModelContext, and persistence — the data model behind reactive agents.
 icon: Layers
 ---
 
 Mozaik centers on one idea: **everything the model sees and produces is modeled as structured context**, not loose strings scattered across your codebase.
 
+## Messages vs. ContextItems
+
+Two kinds of events flow through an `AgenticEnvironment`:
+
+- **Messages** — plain `string`s for conversational input/output. Delivered through `onMessage(message: string)`. Use them for what a human types, what one agent says to another, and any other free-form text.
+- **`ContextItem`s** — typed model internals. Delivered through dedicated handlers: `onFunctionCall`, `onFunctionCallOutput`, `onReasoning`, `onModelMessage` (and their `onExternal*` counterparts).
+
+When a reactive agent decides to remember a message, it wraps it as a `UserMessageItem` (or `DeveloperMessageItem` / `SystemMessageItem`) and appends it to its `ModelContext`. From that point on, the message participates in inference like any other context item.
+
 ## ModelContext
 
-A **`ModelContext`** is the ordered list of `ContextItem`s a `GenerativeModel` is asked to reason over. It is constructed and mutated explicitly — typically inside a participant in response to delivered items.
+A **`ModelContext`** is the ordered list of `ContextItem`s a `GenerativeModel` is asked to reason over. It is constructed and mutated explicitly — typically inside a participant in response to delivered events.
 
 ```ts
 import {
@@ -32,7 +41,7 @@ You:
 - Append items as messages, tool results, and model output flow through.
 - Persist it through a `ModelContextRepository` so multi-turn flows, branching, and replay are easy.
 
-## ContextItem
+## ContextItem taxonomy
 
 A **`ContextItem`** is one atomic piece of that history. Concrete item types are aligned with the [OpenResponses](/docs/open-responses) vocabulary.
 
@@ -55,16 +64,16 @@ A **`ContextItem`** is one atomic piece of that history. Concrete item types are
 
 Together, these items form an ordered transcript you can persist, trim, transform, or share across multiple participants.
 
-## How it fits with participants
+## How it fits with reactive agents
 
 Participants and `ModelContext` cooperate but stay decoupled. A typical pattern:
 
-1. A participant receives an item via `onContextItem(source, item)`.
-2. It appends the item to its own `ModelContext` with `context.addContextItem(item)`.
-3. When it decides to call the model, it passes that context to its `InferenceRunner`.
-4. The runner streams `ReasoningItem` / `FunctionCallItem` / `ModelMessageItem` back into the environment, where every other participant — including the one that triggered inference — sees them via `onContextItem`.
+1. A participant receives an event via one of its typed handlers — for example `onMessage(message)` or `onFunctionCallOutput(item)`.
+2. It appends the relevant context item to its own `ModelContext` (wrapping a string in `UserMessageItem.create(message)` when needed).
+3. When it decides to call the model, it passes that context to its `InferenceRunner` via `runInference`.
+4. The runner streams `ReasoningItem` / `FunctionCallItem` / `ModelMessageItem` back into the environment, where every other participant — and the agent itself, through its `onReasoning` / `onFunctionCall` / `onModelMessage` handlers — sees them.
 
-The [reactive agent pattern](/docs/participants#reactive-agent) shows this end-to-end.
+The [Reactive Agent](/docs/reactive-agent) page shows this end-to-end.
 
 ## Persistence
 
@@ -90,7 +99,7 @@ Around inference, Mozaik exposes:
 Call sites stay typed end-to-end from tool declaration through inference response.
 
 <Cards>
+  <Card title="Reactive Agent" href="/docs/reactive-agent" description="How a reactive agent uses ModelContext and the typed handlers." />
   <Card title="Participants" href="/docs/participants" description="How participants append delivered items and trigger inference." />
   <Card title="OpenResponses" href="/docs/open-responses" description="How ContextItem maps onto the provider-agnostic spec." />
-  <Card title="Package exports" href="/docs/package-exports" description="Every symbol exported from @mozaik-ai/core." />
 </Cards>

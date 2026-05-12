@@ -1,35 +1,45 @@
 ---
 title: Introduction
-description: Mozaik is a TypeScript framework for building non-blocking AI agents that share an agentic environment.
+description: Mozaik is a TypeScript framework for building reactive agents that collaborate in an event-driven agentic environment.
 active: blue
 icon: Rocket
 ---
 
-Humans, agents, observers, and tools are all `Participant`s of the same `AgenticEnvironment`. Each participant runs **non-blocking** and streams typed `ContextItem`s into the environment. Every other participant sees those items in real time and can react, intercept, or stay silent — without any central scheduler.
+**Mozaik** is a TypeScript framework for building **reactive agents** — collaborative agents that adapt to their environment and to each other in real time.
+
+Humans, agents, observers, and tools are all `Participant`s of the same `AgenticEnvironment`. Each participant emits events — plain-text **messages** and typed `ContextItem`s for model internals (function calls, outputs, reasoning, model messages) — and every other participant sees those events as they arrive and decides whether to react, intercept, or stay silent. No central scheduler.
 
 ## Get started
 
 <Cards>
   <Card title="Installation" href="/docs/installation" description="Add @mozaik-ai/core and configure your API key." />
   <Card title="Quickstart" href="/docs/quickstart" description="Spin up an environment with a human and an agent participant." />
+  <Card title="Reactive Agent" href="/docs/reactive-agent" description="What a reactive agent is and how to build one with Mozaik." />
   <Card title="Architecture" href="/docs/architecture" description="How environment, participants, capabilities, and generators fit together." />
 </Cards>
 
 ## Why Mozaik
 
-- **Non-blocking participants** — Capability methods return `Promise<void>` and stream items into the environment as they are produced. No participant ever blocks another, even on a slow model call or a long-running tool.
-- **Shared agentic environment** — `AgenticEnvironment` is a broadcast bus, not a pipeline. There is no central scheduler deciding who runs next; participants `join()` and react to whatever flows through.
-- **Reaction over orchestration** — A single `onContextItem(source, item)` intercept lets a participant observe, react, or stay silent. Add a critic, a logger, or a guardrail without touching existing participants.
-- **Composable generators** — Swap `InputItemSource`, `InferenceRunner`, and `FunctionCallRunner` to change how input is produced, how the model is called, and how tools are resolved — without changing the participant contract.
+- **Reactive agents** — Agents react to events in the environment instead of following a hard-coded pipeline. Drop in a new participant and behavior emerges from how it reacts to what others emit.
+- **Event-driven agentic environment** — `AgenticEnvironment` is a broadcast bus. Participants `join()` and listen for the specific events they care about: `onMessage`, `onFunctionCall`, `onReasoning`, `onModelMessage`, and their `onExternal*` counterparts.
+- **Collaborative by default** — Multiple agents share one environment and adapt to each other in real time. Add a critic, a planner, or an observer without rewiring the existing ones.
+- **Reaction over orchestration** — Every handler defaults to a no-op. Override only the ones you care about. Compose behaviors by joining participants, not by editing a central controller.
+- **Non-blocking under the hood** — Capability methods stream items as they are produced, so a slow inference or tool call never holds up other participants.
 - **OpenResponses-aligned types** — `ContextItem` mirrors the [OpenResponses](https://www.openresponses.org/) vocabulary, so your domain types stay stable across providers.
 
 ## Explore the framework
 
 <Cards>
-  <Card title="Agentic environment" href="/docs/agentic-environment" description="The broadcast bus that fans every item out to every subscriber." />
+  <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus that fans every message and item out to every participant." />
   <Card title="Participants" href="/docs/participants" description="Capabilities, BaseHumanParticipant, BaseAgentParticipant, observers, and reactive agents." />
   <Card title="Generators" href="/docs/generators" description="Customize input, inference, and tool execution end-to-end." />
   <Card title="Core concepts" href="/docs/concepts" description="ModelContext, ContextItem taxonomy, and persistence." />
+</Cards>
+
+## Advanced
+
+<Cards>
+  <Card title="Agent Swarms" href="/docs/agent-swarms" description="Build collaborative swarms of reactive agents that work together on the same goal." />
 </Cards>
 
 ## Resources

@@ -7,9 +7,11 @@
     "architecture",
     "agentic-environment",
     "participants",
+    "reactive-agent",
     "generators",
     "concepts",
     "open-responses",
-    "package-exports"
+    "package-exports",
+    "agent-swarms"
   ]
 }

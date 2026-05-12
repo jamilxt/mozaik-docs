@@ -1,6 +1,6 @@
 ---
 title: Architecture
-description: Environment, participants, capabilities, and generators — how the four pieces fit together.
+description: Environment, participants, capabilities, and generators — the four pieces of Mozaik's event-driven agentic environment.
 icon: Layers
 ---
 
@@ -10,42 +10,53 @@ Mozaik has four moving parts. They are deliberately decoupled so you can change 
     Human[BaseHumanParticipant] -->|streamInput| Env(("AgenticEnvironment"))
     Agent[BaseAgentParticipant] -->|"runInference / executeFunctionCall"| Env
     Observer[Custom Participant] -->|join| Env
-    Env -->|onContextItem| Human
-    Env -->|onContextItem| Agent
-    Env -->|onContextItem| Observer
+    Env -->|"onMessage / onExternal*"| Human
+    Env -->|"onFunctionCall / onReasoning / ..."| Agent
+    Env -->|"onExternal*"| Observer
 `} />
 
 ## The four pieces
 
 | Piece | Responsibility |
 | --- | --- |
-| **`AgenticEnvironment`** | A broadcast bus. Receives items via `deliverContextItem` and fans them out to every joined participant's `onContextItem` callback. No central scheduler. |
-| **`Participant`** | The single abstraction for humans, agents, observers, and tools. Joins an environment and reacts to items via `onContextItem(source, item)`. |
-| **Capabilities** | What a participant can *produce*. `InputCapable` streams input items; `InferenceCapable` streams model output; `FunctionCallCapable` streams tool outputs. Capability methods are **non-blocking** — they return `Promise<void>` and emit items in the background. |
-| **Generators** | The pluggable I/O behind the capabilities: `InputItemSource`, `InferenceRunner`, `FunctionCallRunner`. Swap any of them without changing the participant or the environment. |
+| **`AgenticEnvironment`** | An event bus. Receives messages and context items from participants and fans each one out to the appropriate typed handler on every other participant. No central scheduler. |
+| **`Participant`** | The single abstraction for humans, agents, observers, and tools. Joins an environment and reacts to events through typed handlers (`onMessage`, `onFunctionCall`, `onExternalFunctionCall`, `onReasoning`, `onModelMessage`, …). Every handler defaults to a no-op — override only the ones you care about. |
+| **Capabilities** | What a participant can *produce*. `InputCapable` streams messages; `InferenceCapable` streams model output; `FunctionCallCapable` streams tool outputs. Capability methods are non-blocking — they return `Promise<void>` and emit events in the background. |
+| **Generators** | The pluggable I/O behind the capabilities: `InputStream`, `InferenceRunner`, `FunctionCallRunner`. Swap any of them without changing the participant or the environment. |
 
-## How items flow
+## How events flow
 
-At runtime, every layer trades the same currency: typed `ContextItem`s.
+At runtime, the environment fans out two kinds of events:
+
+- **Messages** — plain `string`s, delivered via `onMessage(message)`.
+- **`ContextItem`s** — typed model internals (`FunctionCallItem`, `FunctionCallOutputItem`, `ReasoningItem`, `ModelMessageItem`), delivered via the matching typed handler.
+
+For every typed event there are two variants:
+
+- **Self handler** (e.g. `onFunctionCall`) — fires when *this* participant emits the event.
+- **External handler** (e.g. `onExternalFunctionCall`) — fires when *another* participant emits the event.
+
+The split means a participant can encode "act on my own outputs" separately from "observe others", without inspecting `source` by hand.
 
 1. A capability method (`streamInput`, `runInference`, `executeFunctionCall`) is invoked on a participant.
-2. The participant's generator yields items as they are produced.
-3. Each item is delivered to the environment via `deliverContextItem(initiator, item)`.
-4. The environment dispatches `onContextItem(source, item)` on every other participant — synchronously and without awaiting them, so a slow listener never blocks producers or other listeners.
+2. The participant's generator yields messages or items as they are produced.
+3. Each event is delivered to the environment.
+4. The environment dispatches the matching handler on every participant — synchronously and without awaiting them, so a slow listener never blocks producers or other listeners.
 5. Listening participants choose to **observe**, **react** (by triggering their own capabilities), or **ignore**.
 
-Because each capability invocation is a fresh promise wrapping an async iterable, multiple participants can produce items into the same environment **concurrently** without any of them blocking on another.
+Because each capability invocation is a fresh promise wrapping an async iterable, multiple participants can produce events into the same environment **concurrently**.
 
 ## How to choose a starting point
 
 - **Single agent reacting to user input** — start with [`BaseHumanParticipant`](/docs/participants#basehumanparticipant) + [`BaseAgentParticipant`](/docs/participants#baseagentparticipant) and the [Quickstart](/docs/quickstart).
-- **Add observability without changing agent logic** — add a [passive observer](/docs/participants#passive-observer) that just logs in `onContextItem`.
-- **Multi-agent collaboration** — `join()` more `Participant`s. They all see the same items in real time and can react independently.
+- **Build a reactive agent** — see the dedicated [Reactive Agent](/docs/reactive-agent) page.
+- **Add observability without changing agent logic** — add a [passive observer](/docs/participants#passive-observer) that just logs from `onMessage` and the `onExternal*` handlers.
+- **Multi-agent collaboration** — `join()` more `Participant`s. They all see the same events in real time and react independently. See [Agent Swarms](/docs/agent-swarms) for patterns.
 - **Custom input, model, or tool execution** — build a [generator](/docs/generators) and pass it into `BaseAgentParticipant`.
 - **Direct, single-shot inference** — call [`OpenAIResponses`](/docs/open-responses) yourself with a `ModelContext`.
 
 <Cards>
-  <Card title="Agentic environment" href="/docs/agentic-environment" description="The broadcast bus, join, start, and delivery semantics." />
+  <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus, join, start, and delivery semantics." />
   <Card title="Participants" href="/docs/participants" description="Capabilities, BaseHumanParticipant, BaseAgentParticipant, observer and reactive patterns." />
-  <Card title="Generators" href="/docs/generators" description="InputItemSource, InferenceRunner, FunctionCallRunner." />
+  <Card title="Generators" href="/docs/generators" description="InputStream, InferenceRunner, FunctionCallRunner." />
 </Cards>

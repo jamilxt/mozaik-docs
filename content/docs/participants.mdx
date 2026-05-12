@@ -1,42 +1,58 @@
 ---
 title: Participants
-description: The single abstraction for humans, agents, observers, and tools. Capabilities, BaseHumanParticipant, BaseAgentParticipant, and reaction patterns.
+description: The single abstraction for humans, agents, observers, and tools in a reactive, event-driven agentic environment.
 icon: Users
 ---
 
-In Mozaik, **everything that produces or consumes context items is a `Participant`**: humans, agents, transcript loggers, guardrails, UI streams. They all share one abstraction and one intercept point.
+In Mozaik, **everything that produces or consumes events is a `Participant`**: humans, reactive agents, transcript loggers, guardrails, UI streams. They all share one abstraction and one set of typed event handlers.
 
 ```ts
-import { Participant, ContextItem } from '@mozaik-ai/core';
+import { Participant } from '@mozaik-ai/core';
 
 class MyParticipant extends Participant {
-  async onContextItem(source: Participant, item: ContextItem): Promise<void> {
+  async onMessage(message: string): Promise<void> {
     // observe, react, or ignore
   }
 }
 ```
 
-`onContextItem(source, item)` is the **single intercept point**. A participant can:
+Every handler is a no-op in the base class, so a participant only needs to define the events it actually cares about. A participant can:
 
-- **Observe** items from other participants (telemetry, audit, UI streaming).
-- **React** to items by triggering its own capabilities (turn a `UserMessageItem` into an inference run, turn a `FunctionCallItem` into a tool execution).
-- **Ignore** items it does not care about — it is just a method call.
+- **Observe** events from other participants (telemetry, audit, UI streaming).
+- **React** to events by triggering its own capabilities (turn an incoming `onMessage` into an inference run, turn an `onFunctionCall` into a tool execution).
+- **Ignore** events it does not care about — handlers it doesn't override are no-ops.
+
+## Typed handlers
+
+| Handler | Triggered when… |
+| --- | --- |
+| `onMessage` | any participant sends a message |
+| `onFunctionCall` | its own inference returns a function call |
+| `onExternalFunctionCall` | another agent's inference returns a function call |
+| `onFunctionCallOutput` | its own function call runner returns a result |
+| `onExternalFunctionCallOutput` | another agent's function call runner returns a result |
+| `onReasoning` | its own inference returns a reasoning item |
+| `onExternalReasoning` | another agent's inference returns a reasoning item |
+| `onModelMessage` | its own inference returns an assistant message |
+| `onExternalModelMessage` | another agent's inference returns an assistant message |
+
+The split between **self** and **`onExternal*`** handlers lets a participant encode "act on my own outputs" separately from "observe others", with no manual `source` checks.
 
 ## Capabilities
 
-Capabilities describe what a participant can *produce*. Each capability is a non-blocking method that streams typed items into the environment.
+Capabilities describe what a participant can *produce*. Each capability is a non-blocking method that streams events into the environment.
 
-| Capability | Method | Yields |
+| Capability | Method | Produces |
 | --- | --- | --- |
-| `InputCapable` | `streamInput(environment)` | `UserMessageItem`, `DeveloperMessageItem`, `SystemMessageItem` |
+| `InputCapable` | `streamInput(environment)` | messages (strings) via `onMessage` |
 | `InferenceCapable` | `runInference(environment, context, model)` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem` |
 | `FunctionCallCapable` | `executeFunctionCall(environment, call)` | `FunctionCallOutputItem` |
 
-Every capability method returns `Promise<void>` and pumps its underlying generator into the environment item-by-item. **Callers never `await` a capability for its result** — they `await` only if they care about completion. This is what allows multiple participants to act on the same environment concurrently.
+Capability methods return `Promise<void>` and pump their underlying generator into the environment event-by-event. **Callers never `await` a capability for its result** — they `await` only if they care about completion. This is what allows multiple participants to act on the same environment concurrently.
 
 ## BaseHumanParticipant
 
-A ready-to-use participant for human input. Wraps an [`InputItemSource`](/docs/generators#inputitemsource).
+A ready-to-use participant for human input. Wraps an [`InputStream`](/docs/generators#custom-inputstream).
 
 ```ts
 import { BaseHumanParticipant } from '@mozaik-ai/core';
@@ -46,11 +62,11 @@ human.join(environment);
 human.streamInput(environment);
 ```
 
-| Capability | Yields |
+| Capability | Pulls from |
 | --- | --- |
-| `InputCapable` | `UserMessageItem`, `DeveloperMessageItem`, `SystemMessageItem` |
+| `InputCapable` | `InputStream` |
 
-Use it for stdin, websockets, an HTTP queue, or anything that produces user/developer/system messages over time.
+Use it for stdin, websockets, an HTTP queue, or anything that produces user messages over time.
 
 ## BaseAgentParticipant
 
@@ -69,26 +85,48 @@ agent.join(environment);
 agent.runInference(environment, context, model);
 ```
 
-| Capability | Method | Yields |
-| --- | --- | --- |
-| `InputCapable` | `streamInput(environment)` | client items via `InputItemSource` |
-| `InferenceCapable` | `runInference(environment, context, model)` | model items via `InferenceRunner` |
-| `FunctionCallCapable` | `executeFunctionCall(environment, call)` | `FunctionCallOutputItem` via `FunctionCallRunner` |
+| Capability | Pulls from |
+| --- | --- |
+| `InputCapable` | `InputStream` |
+| `InferenceCapable` | `InferenceRunner` |
+| `FunctionCallCapable` | `FunctionCallRunner` |
 
-Customize *what* the agent does by overriding `onContextItem` (decide when to call inference, tools, etc.). Customize *how* it does it by swapping the [generators](/docs/generators).
+Customize *what* the agent does by overriding the typed handlers (decide when to call inference, tools, etc.). Customize *how* it does it by swapping the [generators](/docs/generators).
 
 ## Patterns
 
 ### Passive observer
 
-Subclass `Participant` and just consume items. No capabilities required.
+Subclass `Participant` and just consume events. No capabilities required.
 
 ```ts
-import { Participant, ContextItem } from '@mozaik-ai/core';
+import {
+  Participant,
+  FunctionCallItem,
+  FunctionCallOutputItem,
+  ReasoningItem,
+  ModelMessageItem,
+} from '@mozaik-ai/core';
 
 export class TranscriptLogger extends Participant {
-  async onContextItem(source: Participant, item: ContextItem): Promise<void> {
-    console.log(`[${source.constructor.name}]`, item.toJSON());
+  async onMessage(message: string): Promise<void> {
+    console.log('[message]', message);
+  }
+
+  async onExternalFunctionCall(source: Participant, item: FunctionCallItem): Promise<void> {
+    console.log(`[${source.constructor.name}] function_call`, item.toJSON());
+  }
+
+  async onExternalFunctionCallOutput(source: Participant, item: FunctionCallOutputItem): Promise<void> {
+    console.log(`[${source.constructor.name}] function_call_output`, item.toJSON());
+  }
+
+  async onExternalReasoning(source: Participant, item: ReasoningItem): Promise<void> {
+    console.log(`[${source.constructor.name}] reasoning`, item.toJSON());
+  }
+
+  async onExternalModelMessage(source: Participant, item: ModelMessageItem): Promise<void> {
+    console.log(`[${source.constructor.name}] model_message`, item.toJSON());
   }
 }
 ```
@@ -97,26 +135,27 @@ Drop one of these into any environment and you have a live transcript. Add anoth
 
 ### Reactive agent
 
-A reactive agent extends `BaseAgentParticipant` and uses incoming items from *other* participants to decide when to run inference or execute a tool call.
+A reactive agent extends `BaseAgentParticipant` and overrides only the handlers it wants to react on. Each handler is already a no-op in the base class, so only the relevant ones need bodies.
 
 ```ts
 import {
   BaseAgentParticipant,
-  Participant,
-  ContextItem,
   UserMessageItem,
   FunctionCallItem,
+  FunctionCallOutputItem,
+  ReasoningItem,
+  ModelMessageItem,
   AgenticEnvironment,
   ModelContext,
   GenerativeModel,
-  InputItemSource,
+  InputStream,
   InferenceRunner,
   FunctionCallRunner,
 } from '@mozaik-ai/core';
 
 export class ReactiveAgent extends BaseAgentParticipant {
   constructor(
-    inputSource: InputItemSource,
+    inputSource: InputStream,
     inferenceRunner: InferenceRunner,
     functionCallRunner: FunctionCallRunner,
     private readonly environment: AgenticEnvironment,
@@ -126,48 +165,42 @@ export class ReactiveAgent extends BaseAgentParticipant {
     super(inputSource, inferenceRunner, functionCallRunner);
   }
 
-  async onContextItem(source: Participant, item: ContextItem): Promise<void> {
-    if (source === this) return;
+  async onMessage(message: string): Promise<void> {
+    this.context.addContextItem(UserMessageItem.create(message));
+    this.runInference(this.environment, this.context, this.model);
+  }
 
+  async onFunctionCall(item: FunctionCallItem): Promise<void> {
     this.context.addContextItem(item);
+    this.executeFunctionCall(this.environment, item);
+  }
 
-    if (item instanceof UserMessageItem) {
-      this.runInference(this.environment, this.context, this.model);
-      return;
-    }
+  async onFunctionCallOutput(item: FunctionCallOutputItem): Promise<void> {
+    this.context.addContextItem(item);
+    this.runInference(this.environment, this.context, this.model);
+  }
 
-    if (item instanceof FunctionCallItem) {
-      this.executeFunctionCall(this.environment, item);
-      return;
-    }
+  async onReasoning(item: ReasoningItem): Promise<void> {
+    this.context.addContextItem(item);
+  }
+
+  async onModelMessage(item: ModelMessageItem): Promise<void> {
+    this.context.addContextItem(item);
   }
 }
 ```
 
-Two things to note:
+Three things to note:
 
-1. The agent never `await`s its own capability calls inside `onContextItem`. The methods are non-blocking, so the environment keeps delivering items while inference and tool execution run in the background.
-2. Behaviors compose by **reaction**, not orchestration. Add a second agent that listens for `ModelMessageItem`s and you get a critique loop. Add a `TranscriptLogger` and you get a UI stream. Neither change touches the existing participants.
+1. The agent never `await`s its own capability calls inside the handlers — those methods are non-blocking, so the environment keeps delivering events while inference and tool execution run in the background.
+2. The split between **self** handlers and `onExternal*` handlers means the agent reacts to its own outputs separately from observing others, with no `source` checks.
+3. Behaviors compose by **reaction**, not orchestration. Add a second agent that overrides `onExternalModelMessage` and you get a critique loop. Add a `TranscriptLogger` and you get a UI stream. Neither change touches the existing participants.
 
-## Discriminating items
-
-Items are discriminated by the `ContextItem` subclass and, for messages, the `role` field:
-
-- Client-produced: `UserMessageItem`, `DeveloperMessageItem`, `SystemMessageItem`, `FunctionCallOutputItem`
-- Model-produced: `ModelMessageItem`, `FunctionCallItem`, `ReasoningItem`
-
-```ts
-async onContextItem(source: Participant, item: ContextItem): Promise<void> {
-  if (item instanceof FunctionCallItem) {
-    // model asked for a tool
-  } else if (item instanceof ModelMessageItem) {
-    // model produced a final message
-  }
-}
-```
+A deeper walkthrough lives on the dedicated [Reactive Agent](/docs/reactive-agent) page.
 
 <Cards>
-  <Card title="Agentic environment" href="/docs/agentic-environment" description="The broadcast bus participants join." />
+  <Card title="Reactive Agent" href="/docs/reactive-agent" description="What a reactive agent is and how to build one with Mozaik." />
+  <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus participants join." />
   <Card title="Generators" href="/docs/generators" description="Plug in custom input, inference, and tool execution." />
-  <Card title="Core concepts" href="/docs/concepts" description="ModelContext and the ContextItem taxonomy." />
+  <Card title="Agent Swarms" href="/docs/agent-swarms" description="Compose many reactive agents into a collaborative swarm." />
 </Cards>
