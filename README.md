@@ -1,14 +1,10 @@
 # mozaik-docs
 
-This is a Tanstack Start application generated with
-[Create Fumadocs](https://github.com/fuma-nama/fumadocs).
-
-Run development server:
+Documentation for [Mozaik](https://github.com/jigjoy-ai/mozaik) (`@mozaik-ai/core`). Built with [Fumadocs](https://fumadocs.dev) and TanStack Start.
 
 ```bash
+npm install
 npm run dev
-# or
-pnpm dev
-# or
-yarn dev
 ```
+
+Docs live in `content/docs/`. Production build: `npm run build`.
