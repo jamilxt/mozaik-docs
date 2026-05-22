@@ -29,11 +29,11 @@ Under the hood every capability is non-blocking, so a reactive agent never holds
 
 ## Build a reactive agent with Mozaik
 
-A reactive agent extends `BaseAgentParticipant` and overrides only the handlers it actually needs. Every handler defaults to a no-op, so a reactive agent stays small and explicit about what it reacts to.
+A reactive agent extends `BaseAgent` and overrides only the handlers it actually needs. Every handler defaults to a no-op, so a reactive agent stays small and explicit about what it reacts to.
 
 ```ts
 import {
-  BaseAgentParticipant,
+  BaseAgent,
   UserMessageItem,
   FunctionCallItem,
   FunctionCallOutputItem,
@@ -42,21 +42,19 @@ import {
   AgenticEnvironment,
   ModelContext,
   GenerativeModel,
-  InputStream,
   InferenceRunner,
   FunctionCallRunner,
 } from '@mozaik-ai/core';
 
-export class ReactiveAgent extends BaseAgentParticipant {
+export class ReactiveAgent extends BaseAgent {
   constructor(
-    inputSource: InputStream,
     inferenceRunner: InferenceRunner,
     functionCallRunner: FunctionCallRunner,
     private readonly environment: AgenticEnvironment,
     private readonly context: ModelContext,
     private readonly model: GenerativeModel,
   ) {
-    super(inputSource, inferenceRunner, functionCallRunner);
+    super(inferenceRunner, functionCallRunner);
   }
 
   async onMessage(message: string): Promise<void> {
@@ -86,7 +84,7 @@ export class ReactiveAgent extends BaseAgentParticipant {
 
 ### What each handler does
 
-- **`onMessage(message)`** — Someone sent a plain-text message (a human, another agent, an input stream). Record it as a `UserMessageItem` and trigger inference.
+- **`onMessage(message)`** — Someone sent a plain-text message (a human via `sendMessage`, another agent, etc.). Record it as a `UserMessageItem` and trigger inference.
 - **`onFunctionCall(item)`** — The agent's own inference returned a tool call. Record it and execute the tool.
 - **`onFunctionCallOutput(item)`** — The agent's own function call runner produced a result. Record it and run inference again so the model can use it.
 - **`onReasoning(item)` / `onModelMessage(item)`** — Keep the local `ModelContext` in sync with the model's outputs.
@@ -99,7 +97,6 @@ const context = ModelContext.create('demo');
 const model = new Gpt54Mini();
 
 const agent = new ReactiveAgent(
-  inputSource,
   inferenceRunner,
   functionCallRunner,
   environment,
@@ -123,10 +120,11 @@ For every typed event there are two handlers:
 | `onFunctionCallOutput` | `onExternalFunctionCallOutput` |
 | `onReasoning` | `onExternalReasoning` |
 | `onModelMessage` | `onExternalModelMessage` |
+| `onInternalEvent` | `onExternalEvent` |
 
 The reactive agent above reacts to its **own** outputs (loop the model with tool results) and is silent on what other agents emit. To collaborate with peers, override the `onExternal*` handlers as well — for example, override `onExternalModelMessage` to critique another agent's reply.
 
-`onMessage` has no `onExternal` variant: messages are conversational and reach every participant the same way.
+`onMessage` has no `onExternal` variant: messages are conversational and reach every participant the same way (except the sender).
 
 ## Composing reactive agents
 
@@ -143,6 +141,7 @@ For multi-agent patterns at scale — planner + executors + reviewer + observers
 <Cards>
   <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus reactive agents join and react to." />
   <Card title="Participants" href="/docs/participants" description="Capabilities and the typed handler API." />
-  <Card title="Generators" href="/docs/generators" description="Plug in custom input, inference, and tool execution." />
+  <Card title="Generators" href="/docs/generators" description="Plug in custom inference and tool execution." />
+  <Card title="Streaming" href="/docs/streaming" description="Semantic events and live UIs." />
   <Card title="Agent Swarms" href="/docs/agent-swarms" description="Compose many reactive agents into a collaborative swarm." />
 </Cards>

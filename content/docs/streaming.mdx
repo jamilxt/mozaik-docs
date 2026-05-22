@@ -1,0 +1,45 @@
+---
+title: Streaming
+description: Enable model streaming and react to semantic events in the agentic environment for live UIs.
+icon: Radio
+---
+
+Enable streaming on a model that supports it, then run inference as usual:
+
+```ts
+const model = new Gpt54Mini();
+model.setStreaming(true);
+
+await agent.runInference(environment, context, model);
+```
+
+With streaming enabled, `OpenAIInferenceRunner` emits **semantic event** chunks (provider `type` + `data`) into the environment. The producing agent receives `onInternalEvent`; everyone else receives `onExternalEvent(source, event)`. Use these handlers to drive a live UI — for example, print text deltas from `response.output_text.delta` events:
+
+```ts
+import { BaseAgent, Participant } from '@mozaik-ai/core';
+
+export class LiveUIAgent extends BaseAgent {
+  async onInternalEvent(event: { type: string; data: unknown }): Promise<void> {
+    if (event.type === 'response.output_text.delta') {
+      process.stdout.write(String((event.data as { delta?: string }).delta ?? ''));
+    }
+  }
+
+  async onExternalEvent(
+    source: Participant,
+    event: { type: string; data: unknown },
+  ): Promise<void> {
+    // Observe another agent's stream the same way.
+  }
+}
+```
+
+`setStreaming(true)` on a model without `supportStreaming` throws before the API is called.
+
+When streaming is off, inference yields typed `ContextItem`s (`ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`) as usual. See [Generators](/docs/generators) for custom `InferenceRunner` implementations and [OpenResponses](/docs/open-responses) for how items map to the provider spec.
+
+<Cards>
+  <Card title="Agentic environment" href="/docs/agentic-environment" description="Handler delivery and fan-out semantics." />
+  <Card title="Participants" href="/docs/participants" description="onInternalEvent and onExternalEvent on BaseAgent and BaseObserver." />
+  <Card title="Generators" href="/docs/generators" description="OpenAIInferenceRunner and custom inference runners." />
+</Cards>

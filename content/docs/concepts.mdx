@@ -92,14 +92,16 @@ Implement `ModelContextRepository` against Postgres, Redis, or object storage so
 
 Around inference, Mozaik exposes:
 
-- `GenerativeModel`, `InferenceRequest`, `InferenceResponse`.
+- `GenerativeModel` — bundled models (`Gpt54`, `Gpt54Mini`, `Gpt54Nano`, `Gpt55`) support `setStreaming(true)` when `supportStreaming` is enabled.
+- `OpenAIInferenceRunner` — default path from `ModelContext` to typed items (and semantic stream events when streaming; see [Streaming](/docs/streaming)).
 - `Tool` — declare callable capabilities for the model.
 - Token usage helpers: `TokenUsage`, `InputTokenDetails`, `OutputTokenDetails`.
 
-Call sites stay typed end-to-end from tool declaration through inference response.
+Call sites stay typed end-to-end from tool declaration through inference. With streaming enabled, incremental provider events arrive as semantic events before full `ContextItem`s are assembled.
 
 <Cards>
   <Card title="Reactive Agent" href="/docs/reactive-agent" description="How a reactive agent uses ModelContext and the typed handlers." />
   <Card title="Participants" href="/docs/participants" description="How participants append delivered items and trigger inference." />
   <Card title="OpenResponses" href="/docs/open-responses" description="How ContextItem maps onto the provider-agnostic spec." />
+  <Card title="Streaming" href="/docs/streaming" description="Semantic events during model streaming." />
 </Cards>

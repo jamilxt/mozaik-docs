@@ -9,12 +9,13 @@ icon: Network
 There is **no central scheduler**. The environment does not decide who runs next, who is allowed to speak, or in what order. Behavior emerges from how participants react to delivered events.
 
 <Mermaid chart={`flowchart LR
-    Human[BaseHumanParticipant] -->|streamInput| Env(("AgenticEnvironment"))
-    Agent[BaseAgentParticipant] -->|"runInference / executeFunctionCall"| Env
+    Human[BaseHuman] -->|sendMessage| Env(("AgenticEnvironment"))
+    Agent[BaseAgent] -->|"runInference / executeFunctionCall"| Env
     Observer[Custom Participant] -->|join| Env
     Env -->|"onMessage / onExternal*"| Human
     Env -->|"onFunctionCall / onReasoning / ..."| Agent
     Env -->|"onExternal*"| Observer
+    Env -->|"onJoined / onLeft / onParticipant*"| All
 `} />
 
 ## Lifecycle
@@ -38,6 +39,7 @@ environment.stop();
 | --- | --- |
 | `new AgenticEnvironment()` | Creates an empty environment with no participants. |
 | `participant.join(environment)` | Registers the participant. From now on it will receive every event through its typed handlers. |
+| `participant.leave(environment)` | Unregisters the participant. Others receive `onParticipantLeft`. |
 | `environment.start()` | Opens the bus for delivery. |
 | `environment.stop()` | Shuts the bus down. |
 
@@ -47,6 +49,10 @@ Each participant exposes one handler per event type. Every handler defaults to a
 
 | Handler | Triggered when… |
 | --- | --- |
+| `onJoined` | this participant joins an environment |
+| `onLeft` | this participant leaves an environment |
+| `onParticipantJoined` | another participant joins the same environment |
+| `onParticipantLeft` | another participant leaves the same environment |
 | `onMessage` | any participant sends a message |
 | `onFunctionCall` | its own inference returns a function call |
 | `onExternalFunctionCall` | another agent's inference returns a function call |
@@ -56,19 +62,22 @@ Each participant exposes one handler per event type. Every handler defaults to a
 | `onExternalReasoning` | another agent's inference returns a reasoning item |
 | `onModelMessage` | its own inference returns an assistant message |
 | `onExternalModelMessage` | another agent's inference returns an assistant message |
+| `onInternalEvent` | its own inference emits a semantic stream event |
+| `onExternalEvent` | another participant emits a semantic stream event |
 
-The split between **self** handlers (`onFunctionCall`, `onReasoning`, `onModelMessage`, `onFunctionCallOutput`) and **`onExternal*`** handlers means a participant can encode "act on my own outputs" separately from "observe others", without inspecting `source` by hand.
+The split between **self** handlers (`onFunctionCall`, `onReasoning`, `onModelMessage`, `onFunctionCallOutput`, `onInternalEvent`) and **`onExternal*`** handlers means a participant can encode "act on my own outputs" separately from "observe others", without inspecting `source` by hand.
 
 ## What flows on the bus
 
-Two kinds of events:
+Three kinds of events:
 
-- **Messages** — plain `string`s, used for conversational input/output. Delivered via `onMessage(message: string)`.
+- **Messages** — plain `string`s, used for conversational input/output. Delivered via `onMessage(message: string)` on every participant except the sender.
 - **`ContextItem`s** — typed model internals. Delivered via their dedicated handlers:
   - `FunctionCallItem` → `onFunctionCall` / `onExternalFunctionCall`
   - `FunctionCallOutputItem` → `onFunctionCallOutput` / `onExternalFunctionCallOutput`
   - `ReasoningItem` → `onReasoning` / `onExternalReasoning`
   - `ModelMessageItem` → `onModelMessage` / `onExternalModelMessage`
+- **Semantic stream events** — provider-level chunks when model streaming is enabled. Delivered via `onInternalEvent` / `onExternalEvent`. See [Streaming](/docs/streaming).
 
 ## Fan-out semantics
 
@@ -79,7 +88,7 @@ When a participant produces a message or context item, the environment dispatche
 
 ```ts
 // Both participants produce events in parallel — neither awaits the other.
-human.streamInput(environment);
+human.sendMessage(environment, 'Hello');
 agent.runInference(environment, context, model);
 ```
 
@@ -92,5 +101,6 @@ agent.runInference(environment, context, model);
 <Cards>
   <Card title="Participants" href="/docs/participants" description="Capabilities, observer and reactive agent patterns." />
   <Card title="Reactive Agent" href="/docs/reactive-agent" description="What a reactive agent is and how to build one with Mozaik." />
-  <Card title="Generators" href="/docs/generators" description="Customize how input, inference, and tool outputs are produced." />
+  <Card title="Generators" href="/docs/generators" description="Customize how inference and tool outputs are produced." />
+  <Card title="Streaming" href="/docs/streaming" description="Semantic events and live UIs." />
 </Cards>

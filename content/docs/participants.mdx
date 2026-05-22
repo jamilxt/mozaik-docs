@@ -26,6 +26,10 @@ Every handler is a no-op in the base class, so a participant only needs to defin
 
 | Handler | Triggered when… |
 | --- | --- |
+| `onJoined` | this participant joins an environment |
+| `onLeft` | this participant leaves an environment |
+| `onParticipantJoined` | another participant joins the same environment |
+| `onParticipantLeft` | another participant leaves the same environment |
 | `onMessage` | any participant sends a message |
 | `onFunctionCall` | its own inference returns a function call |
 | `onExternalFunctionCall` | another agent's inference returns a function call |
@@ -35,6 +39,8 @@ Every handler is a no-op in the base class, so a participant only needs to defin
 | `onExternalReasoning` | another agent's inference returns a reasoning item |
 | `onModelMessage` | its own inference returns an assistant message |
 | `onExternalModelMessage` | another agent's inference returns an assistant message |
+| `onInternalEvent` | its own inference emits a semantic stream event |
+| `onExternalEvent` | another participant emits a semantic stream event |
 
 The split between **self** and **`onExternal*`** handlers lets a participant encode "act on my own outputs" separately from "observe others", with no manual `source` checks.
 
@@ -42,43 +48,42 @@ The split between **self** and **`onExternal*`** handlers lets a participant enc
 
 Capabilities describe what a participant can *produce*. Each capability is a non-blocking method that streams events into the environment.
 
-| Capability | Method | Produces |
+| Role | Method | Produces |
 | --- | --- | --- |
-| `InputCapable` | `streamInput(environment)` | messages (strings) via `onMessage` |
-| `InferenceCapable` | `runInference(environment, context, model)` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem` |
-| `FunctionCallCapable` | `executeFunctionCall(environment, call)` | `FunctionCallOutputItem` |
+| `Human` / `BaseHuman` | `sendMessage(environment, message)` | messages (strings) via `onMessage` on other participants |
+| `BaseAgent` | `runInference(environment, context, model)` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`, and semantic events when streaming |
+| `BaseAgent` | `executeFunctionCall(environment, call)` | `FunctionCallOutputItem` |
 
 Capability methods return `Promise<void>` and pump their underlying generator into the environment event-by-event. **Callers never `await` a capability for its result** — they `await` only if they care about completion. This is what allows multiple participants to act on the same environment concurrently.
 
-## BaseHumanParticipant
+## BaseHuman
 
-A ready-to-use participant for human input. Wraps an [`InputStream`](/docs/generators#custom-inputstream).
+A ready-to-use participant for human input. Sends messages with `sendMessage(environment, text)`.
 
 ```ts
-import { BaseHumanParticipant } from '@mozaik-ai/core';
+import { BaseHuman } from '@mozaik-ai/core';
 
-const human = new BaseHumanParticipant(humanInputSource);
+const human = new BaseHuman();
 human.join(environment);
-human.streamInput(environment);
+human.sendMessage(environment, 'Hello');
 ```
 
-| Capability | Pulls from |
-| --- | --- |
-| `InputCapable` | `InputStream` |
+Wire your app's input (stdin, websocket, HTTP) by calling `sendMessage` when the user acts — no generator interface required.
 
-Use it for stdin, websockets, an HTTP queue, or anything that produces user messages over time.
+## BaseAgent
 
-## BaseAgentParticipant
-
-A ready-to-use agent participant. Wraps three generator interfaces — input, inference, and tool execution — and exposes one capability method per concern.
+A ready-to-use agent participant. Wraps `InferenceRunner` and `FunctionCallRunner`, and exposes `runInference` and `executeFunctionCall`.
 
 ```ts
-import { BaseAgentParticipant } from '@mozaik-ai/core';
+import {
+  BaseAgent,
+  OpenAIInferenceRunner,
+  DefaultFunctionCallRunner,
+} from '@mozaik-ai/core';
 
-const agent = new BaseAgentParticipant(
-  agentInputSource,
-  inferenceRunner,
-  functionCallRunner,
+const agent = new BaseAgent(
+  new OpenAIInferenceRunner(),
+  new DefaultFunctionCallRunner(),
 );
 
 agent.join(environment);
@@ -87,17 +92,57 @@ agent.runInference(environment, context, model);
 
 | Capability | Pulls from |
 | --- | --- |
-| `InputCapable` | `InputStream` |
-| `InferenceCapable` | `InferenceRunner` |
-| `FunctionCallCapable` | `FunctionCallRunner` |
+| `runInference` | `InferenceRunner` |
+| `executeFunctionCall` | `FunctionCallRunner` |
 
 Customize *what* the agent does by overriding the typed handlers (decide when to call inference, tools, etc.). Customize *how* it does it by swapping the [generators](/docs/generators).
+
+## BaseObserver
+
+A ready-to-use listen-only participant. Every handler is a no-op in the base class — override only the events you care about. Use it instead of subclassing `Participant` when you only need to observe.
+
+```ts
+import { BaseObserver } from '@mozaik-ai/core';
+
+const logger = new BaseObserver();
+logger.join(environment);
+```
+
+## Lifecycle hooks
+
+Every participant receives lifecycle notifications when it or others join or leave an environment:
+
+```ts
+import { BaseAgent, Participant } from '@mozaik-ai/core';
+
+export class TeamAgent extends BaseAgent {
+  onJoined(): void {
+    console.log('I joined the environment');
+  }
+
+  onLeft(): void {
+    console.log('I left the environment');
+  }
+
+  onParticipantJoined(participant: Participant): void {
+    console.log(`${participant.constructor.name} joined`);
+  }
+
+  onParticipantLeft(participant: Participant): void {
+    console.log(`${participant.constructor.name} left`);
+  }
+}
+```
+
+Call `participant.leave(environment)` to unregister. Remaining participants receive `onParticipantLeft` for the one that left.
+
+This lets participants react to membership changes — for example, an agent could start inference only after a required collaborator has joined, or clean up shared state when someone leaves.
 
 ## Patterns
 
 ### Passive observer
 
-Subclass `Participant` and just consume events. No capabilities required.
+Subclass `Participant` or extend `BaseObserver` and just consume events. No inference capabilities required.
 
 ```ts
 import {
@@ -131,15 +176,17 @@ export class TranscriptLogger extends Participant {
 }
 ```
 
+For listen-only use, `BaseObserver` is equivalent — override the same `onExternal*` handlers without implementing no-op self handlers.
+
 Drop one of these into any environment and you have a live transcript. Add another that pushes to a websocket and you have a UI stream. None of the existing participants change.
 
 ### Reactive agent
 
-A reactive agent extends `BaseAgentParticipant` and overrides only the handlers it wants to react on. Each handler is already a no-op in the base class, so only the relevant ones need bodies.
+A reactive agent extends `BaseAgent` and overrides only the handlers it wants to react on. Each handler is already a no-op in the base class, so only the relevant ones need bodies.
 
 ```ts
 import {
-  BaseAgentParticipant,
+  BaseAgent,
   UserMessageItem,
   FunctionCallItem,
   FunctionCallOutputItem,
@@ -148,21 +195,19 @@ import {
   AgenticEnvironment,
   ModelContext,
   GenerativeModel,
-  InputStream,
   InferenceRunner,
   FunctionCallRunner,
 } from '@mozaik-ai/core';
 
-export class ReactiveAgent extends BaseAgentParticipant {
+export class ReactiveAgent extends BaseAgent {
   constructor(
-    inputSource: InputStream,
     inferenceRunner: InferenceRunner,
     functionCallRunner: FunctionCallRunner,
     private readonly environment: AgenticEnvironment,
     private readonly context: ModelContext,
     private readonly model: GenerativeModel,
   ) {
-    super(inputSource, inferenceRunner, functionCallRunner);
+    super(inferenceRunner, functionCallRunner);
   }
 
   async onMessage(message: string): Promise<void> {
@@ -201,6 +246,7 @@ A deeper walkthrough lives on the dedicated [Reactive Agent](/docs/reactive-agen
 <Cards>
   <Card title="Reactive Agent" href="/docs/reactive-agent" description="What a reactive agent is and how to build one with Mozaik." />
   <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus participants join." />
-  <Card title="Generators" href="/docs/generators" description="Plug in custom input, inference, and tool execution." />
+  <Card title="Generators" href="/docs/generators" description="Plug in custom inference and tool execution." />
+  <Card title="Streaming" href="/docs/streaming" description="Semantic events and live UIs." />
   <Card title="Agent Swarms" href="/docs/agent-swarms" description="Compose many reactive agents into a collaborative swarm." />
 </Cards>

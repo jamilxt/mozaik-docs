@@ -4,26 +4,27 @@ description: Spin up an event-driven AgenticEnvironment, join a human and an age
 icon: Zap
 ---
 
-This walkthrough mirrors the example in the [Mozaik README](https://github.com/jigjoy-ai/mozaik): create an `AgenticEnvironment`, `join` a `BaseHumanParticipant` and a `BaseAgentParticipant`, and trigger their capabilities so they produce events into the environment in parallel.
+This walkthrough mirrors the example in the [Mozaik README](https://github.com/jigjoy-ai/mozaik): create an `AgenticEnvironment`, `join` a `BaseHuman` and a `BaseAgent`, and trigger their capabilities so they produce events into the environment in parallel.
 
 ## Full example
 
 ```ts
 import {
   AgenticEnvironment,
-  BaseAgentParticipant,
-  BaseHumanParticipant,
+  BaseAgent,
+  BaseHuman,
+  OpenAIInferenceRunner,
+  DefaultFunctionCallRunner,
   Gpt54Mini,
   ModelContext,
 } from '@mozaik-ai/core';
 
 const environment = new AgenticEnvironment();
 
-const human = new BaseHumanParticipant(humanInputSource);
-const agent = new BaseAgentParticipant(
-  agentInputSource,
-  inferenceRunner,
-  functionCallRunner,
+const human = new BaseHuman();
+const agent = new BaseAgent(
+  new OpenAIInferenceRunner(),
+  new DefaultFunctionCallRunner(),
 );
 
 human.join(environment);
@@ -35,21 +36,21 @@ const context = ModelContext.create('demo');
 const model = new Gpt54Mini();
 
 // Both participants produce events in parallel — neither awaits the other.
-human.streamInput(environment);
+human.sendMessage(environment, 'Hello');
 agent.runInference(environment, context, model);
 ```
 
 ## What this is doing
 
 1. **`AgenticEnvironment`** — An event bus for messages and `ContextItem`s. Once started, it fans every event out to every joined participant through the matching typed handler.
-2. **`BaseHumanParticipant`** — Wraps an `InputStream` so it can stream messages (strings) into the environment as they arrive.
-3. **`BaseAgentParticipant`** — Wraps an `InputStream`, an `InferenceRunner`, and a `FunctionCallRunner`. Each capability streams its output back into the environment.
+2. **`BaseHuman`** — Sends messages with `sendMessage(environment, text)`. Other participants receive them via `onMessage`.
+3. **`BaseAgent`** — Wraps an `InferenceRunner` and a `FunctionCallRunner`. `runInference` and `executeFunctionCall` stream their output back into the environment.
 4. **`ModelContext.create(projectId)`** — Allocates an empty context keyed by your own id (conversation, session, project). Participants typically append delivered events to the context they reason over.
-5. **`human.streamInput` / `agent.runInference`** — Capability methods. They return `Promise<void>` immediately and stream events in the background, so neither call blocks the other.
+5. **`human.sendMessage` / `agent.runInference`** — Capability methods. They return `Promise<void>` immediately and stream events in the background, so neither call blocks the other.
 
 ## Where events go
 
-The human's input stream yields strings, which the environment delivers via `onMessage(message)` to every other participant. The agent's inference yields typed items, which the environment delivers via the matching handler — `onFunctionCall`, `onReasoning`, `onModelMessage` — and their `onExternal*` variants on every other participant.
+The human's message is delivered via `onMessage(message)` to every other participant. The agent's inference yields typed items, which the environment delivers via the matching handler — `onFunctionCall`, `onReasoning`, `onModelMessage` — and their `onExternal*` variants on every other participant.
 
 A reactive agent typically overrides `onMessage` (record + run inference), `onFunctionCall` (execute the tool), and `onFunctionCallOutput` (feed the result back and run inference again). See the [Reactive Agent](/docs/reactive-agent) page for the full pattern.
 
@@ -57,17 +58,16 @@ New behaviors are added by **joining another participant**, not by editing the e
 
 ## What you'll need
 
-The example assumes you already have:
+The example uses the bundled runners:
 
-- An `InputStream` that yields the messages your app produces (`async *stream(): AsyncIterable<string>`).
-- An `InferenceRunner` that calls the model and yields `ReasoningItem` / `FunctionCallItem` / `ModelMessageItem`.
-- A `FunctionCallRunner` that resolves a `FunctionCallItem` against your tools and yields a `FunctionCallOutputItem`.
+- **`OpenAIInferenceRunner`** — calls the model and yields `ReasoningItem` / `FunctionCallItem` / `ModelMessageItem` (and semantic events when [streaming](/docs/streaming) is enabled).
+- **`DefaultFunctionCallRunner`** — resolves `FunctionCallItem`s against registered tools.
 
-Implementations for all three are covered on the [Generators](/docs/generators) page.
+For human input, call `sendMessage` from your UI or I/O layer when the user acts. Custom runner implementations are covered on the [Generators](/docs/generators) page.
 
 <Cards>
   <Card title="Reactive Agent" href="/docs/reactive-agent" description="Turn the base agent into a reactive agent with typed handlers." />
   <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus and how participants join, react, and emit." />
   <Card title="Participants" href="/docs/participants" description="Capabilities, observer and reactive agent patterns." />
-  <Card title="Generators" href="/docs/generators" description="Build the InputStream / InferenceRunner / FunctionCallRunner this example uses." />
+  <Card title="Generators" href="/docs/generators" description="Build custom InferenceRunner / FunctionCallRunner implementations." />
 </Cards>

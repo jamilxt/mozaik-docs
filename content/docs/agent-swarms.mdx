@@ -44,18 +44,26 @@ A conceptual 2-agent sketch (planner + executor):
 
 ```ts
 import {
-  BaseAgentParticipant,
+  BaseAgent,
   Participant,
   ModelMessageItem,
   UserMessageItem,
   AgenticEnvironment,
   ModelContext,
   GenerativeModel,
+  InferenceRunner,
+  FunctionCallRunner,
 } from '@mozaik-ai/core';
 
-export class PlannerAgent extends BaseAgentParticipant {
-  constructor(/* generators */, private env: AgenticEnvironment, private ctx: ModelContext, private model: GenerativeModel) {
-    super(/* generators */);
+export class PlannerAgent extends BaseAgent {
+  constructor(
+    inferenceRunner: InferenceRunner,
+    functionCallRunner: FunctionCallRunner,
+    private env: AgenticEnvironment,
+    private ctx: ModelContext,
+    private model: GenerativeModel,
+  ) {
+    super(inferenceRunner, functionCallRunner);
   }
 
   async onMessage(message: string): Promise<void> {
@@ -64,9 +72,15 @@ export class PlannerAgent extends BaseAgentParticipant {
   }
 }
 
-export class ExecutorAgent extends BaseAgentParticipant {
-  constructor(/* generators */, private env: AgenticEnvironment, private ctx: ModelContext, private model: GenerativeModel) {
-    super(/* generators */);
+export class ExecutorAgent extends BaseAgent {
+  constructor(
+    inferenceRunner: InferenceRunner,
+    functionCallRunner: FunctionCallRunner,
+    private env: AgenticEnvironment,
+    private ctx: ModelContext,
+    private model: GenerativeModel,
+  ) {
+    super(inferenceRunner, functionCallRunner);
   }
 
   // React to *another* agent's model message (e.g. the planner's plan).
@@ -89,7 +103,7 @@ transcriptLogger.join(environment);
 
 environment.start();
 
-human.streamInput(environment); // a user message kicks off the planner
+human.sendMessage(environment, 'Build a REST API'); // kicks off the planner
 ```
 
 Every participant sees every event. The planner reacts to the human, the executor reacts to the planner, the reviewer reacts to the executor, and the logger sees all of it. None of them know about each other directly — they only know which handlers they care about.

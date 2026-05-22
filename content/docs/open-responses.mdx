@@ -10,36 +10,13 @@ Mozaik's object model is designed to match **[OpenResponses](https://www.openres
 
 - **Input (context)** — Client-supplied items such as `UserMessageItem`, `DeveloperMessageItem`, `SystemMessageItem`, and `FunctionCallOutputItem` (tool results fed back to the model).
 - **Output (response)** — Model-produced items such as `ReasoningItem`, `FunctionCallItem`, and `ModelMessageItem`.
-- **Streaming** — Items may arrive incrementally as **semantic events** (item-level updates), not only as raw token deltas.
+- **Streaming** — Items may arrive incrementally as **semantic events** (item-level updates), not only as raw token deltas. See [Streaming](/docs/streaming).
 
 Mozaik turns that vocabulary into TypeScript classes you can construct, append to a `ModelContext`, serialize, and store.
 
-## OpenAIResponses is the default provider
+## Default inference path
 
-`OpenAIResponses` implements the OpenResponses specification against the OpenAI Responses API. It handles:
-
-- Serializing `ContextItem` objects from a `ModelContext` to API-compatible input.
-- Deserializing model output into typed `ModelMessageItem`, `FunctionCallItem`, and `ReasoningItem` objects.
-- Extracting token usage from the response.
-
-You typically reach for it in two places:
-
-1. **Inside an `InferenceRunner`** — wrap it and yield its `contextItems` so a `BaseAgentParticipant` can stream them into the environment. See the [Generators page](/docs/generators#custom-inferencerunner) for the pattern.
-2. **As a single-shot caller outside the environment** — when you just need an inference response for a `ModelContext`:
-
-```ts
-import {
-  OpenAIResponses,
-  InferenceRequest,
-  Gpt54,
-  ModelContext,
-} from '@mozaik-ai/core';
-
-const runtime = new OpenAIResponses();
-const context = ModelContext.create('demo');
-
-const response = await runtime.infer(new InferenceRequest(new Gpt54(), context));
-```
+The bundled **`OpenAIInferenceRunner`** maps `ModelContext` to the OpenAI Responses API and yields typed `ContextItem`s into the environment (and semantic events when [streaming](/docs/streaming) is enabled). Pass it into `BaseAgent` along with a `FunctionCallRunner` — see [Generators](/docs/generators).
 
 Available models: `Gpt54`, `Gpt54Mini`, `Gpt54Nano`, `Gpt55`.
 
