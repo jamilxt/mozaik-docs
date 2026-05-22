@@ -8,7 +8,7 @@ icon: Cog
 
 | Interface | Used by | Yields |
 | --- | --- | --- |
-| `InferenceRunner` | `BaseAgent` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`, and semantic stream events when streaming is enabled |
+| `InferenceRunner` | `BaseAgent` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`, and `SemanticEvent<T>` when streaming is enabled |
 | `FunctionCallRunner` | `BaseAgent` | `FunctionCallOutputItem` |
 
 Both are `AsyncIterable`-shaped: they `yield` values as they become available, and the participant streams them into the environment one-by-one.
@@ -42,7 +42,7 @@ export class MyInferenceRunner implements InferenceRunner {
 }
 ```
 
-When streaming is enabled on the model, yield semantic events in the same stream so `BaseAgent` can deliver them via `onInternalEvent` / `onExternalEvent`.
+When streaming is enabled on the model, yield `SemanticEvent` instances in the same async iterable so `BaseAgent` can deliver them via `onInternalEvent` / `onExternalEvent`.
 
 ## Custom FunctionCallRunner
 

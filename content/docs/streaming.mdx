@@ -1,8 +1,14 @@
 ---
 title: Streaming
-description: Enable model streaming and react to semantic events in the agentic environment for live UIs.
+description: SemanticEvent streaming — yield provider chunks from inference and handle them with onInternalEvent and onExternalEvent.
 icon: Radio
 ---
+
+Streaming is how **`SemanticEvent<T>`** moves through the environment. Alongside **messages** (`string`) and **`ContextItem`s** (completed model/tool artifacts), semantic events are the third exchangeable event kind: incremental provider payloads with a `type` and `data`, delivered while inference is still running.
+
+When streaming is enabled, `OpenAIInferenceRunner` yields `SemanticEvent` instances from its async generator. `BaseAgent` delivers each one on the bus — `onInternalEvent` on the producer, `onExternalEvent(source, event)` on everyone else. Custom `InferenceRunner` implementations can yield semantic events the same way.
+
+## Enable streaming
 
 Enable streaming on a model that supports it, then run inference as usual:
 
@@ -13,12 +19,13 @@ model.setStreaming(true);
 await agent.runInference(environment, context, model);
 ```
 
-With streaming enabled, `OpenAIInferenceRunner` emits **semantic event** chunks (provider `type` + `data`) into the environment. The producing agent receives `onInternalEvent`; everyone else receives `onExternalEvent(source, event)`. Use these handlers to drive a live UI — for example, print text deltas from `response.output_text.delta` events:
+Each yielded event is a **`SemanticEvent<T>`** — `event.type` names the provider event, `event.data` carries the payload. Use the handlers to drive a live UI — for example, print text deltas from `response.output_text.delta` events:
 
 ```ts
 import { BaseAgent, Participant } from '@mozaik-ai/core';
 
 export class LiveUIAgent extends BaseAgent {
+  // SemanticEvent<T>: type + data from the provider stream
   async onInternalEvent(event: { type: string; data: unknown }): Promise<void> {
     if (event.type === 'response.output_text.delta') {
       process.stdout.write(String((event.data as { delta?: string }).delta ?? ''));
@@ -29,14 +36,14 @@ export class LiveUIAgent extends BaseAgent {
     source: Participant,
     event: { type: string; data: unknown },
   ): Promise<void> {
-    // Observe another agent's stream the same way.
+    // Same SemanticEvent shape when another participant is streaming.
   }
 }
 ```
 
 `setStreaming(true)` on a model without `supportStreaming` throws before the API is called.
 
-When streaming is off, inference yields typed `ContextItem`s (`ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`) as usual. See [Generators](/docs/generators) for custom `InferenceRunner` implementations and [OpenResponses](/docs/open-responses) for how items map to the provider spec.
+When streaming is off, the runner yields **`ContextItem`s only** (`ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`) — no semantic events on the bus. See [Core concepts](/docs/concepts#messages-contextitems-and-semanticevents) for how the three event kinds relate, [Generators](/docs/generators) for custom runners, and [OpenResponses](/docs/open-responses) for how completed items map to the provider spec.
 
 <Cards>
   <Card title="Agentic environment" href="/docs/agentic-environment" description="Handler delivery and fan-out semantics." />

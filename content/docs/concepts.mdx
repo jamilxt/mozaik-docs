@@ -1,19 +1,31 @@
 ---
 title: Core concepts
-description: Messages, ContextItems, ModelContext, and persistence — the data model behind reactive agents.
+description: Messages, ContextItems, SemanticEvents, ModelContext, and persistence — the data model behind reactive agents.
 icon: Layers
 ---
 
 Mozaik centers on one idea: **everything the model sees and produces is modeled as structured context**, not loose strings scattered across your codebase.
 
-## Messages vs. ContextItems
+## Messages, ContextItems, and SemanticEvents
 
-Two kinds of events flow through an `AgenticEnvironment`:
+Three kinds of events can be exchanged through an `AgenticEnvironment`:
 
 - **Messages** — plain `string`s for conversational input/output. Delivered through `onMessage(message: string)`. Use them for what a human types, what one agent says to another, and any other free-form text.
 - **`ContextItem`s** — typed model internals. Delivered through dedicated handlers: `onFunctionCall`, `onFunctionCallOutput`, `onReasoning`, `onModelMessage` (and their `onExternal*` counterparts).
+- **`SemanticEvent<T>`** — provider-level stream chunks during inference (`type` + `data`). Delivered through `onInternalEvent` / `onExternalEvent`. See [Streaming](/docs/streaming).
 
-When a reactive agent decides to remember a message, it wraps it as a `UserMessageItem` (or `DeveloperMessageItem` / `SystemMessageItem`) and appends it to its `ModelContext`. From that point on, the message participates in inference like any other context item.
+When a reactive agent decides to remember a message, it wraps it as a `UserMessageItem` (or `DeveloperMessageItem` / `SystemMessageItem`) and appends it to its `ModelContext`. From that point on, the message participates in inference like any other context item. Semantic events are usually handled for live UI or telemetry; completed model output still arrives as `ContextItem`s when the stream finishes (or when streaming is off).
+
+### SemanticEvent
+
+A **`SemanticEvent<T>`** is a typed wrapper around incremental provider output:
+
+- **`type`** — the provider event name (for example `response.output_text.delta`).
+- **`data`** — the payload for that event (`T` is provider-specific).
+
+During streaming, an `InferenceRunner` **yields** `SemanticEvent` instances as they arrive. `BaseAgent` forwards each one into the environment: the producing agent gets `onInternalEvent(event)`, and every other participant gets `onExternalEvent(source, event)`. That is the same self / external split as for `ContextItem`s.
+
+Semantic events are not part of `ModelContext` by default — they represent in-flight stream data. Persist or aggregate them in your handlers if you need a replay log; append `ContextItem`s when you want the model to reason over completed turns.
 
 ## ModelContext
 

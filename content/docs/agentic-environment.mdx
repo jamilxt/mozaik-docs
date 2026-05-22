@@ -62,22 +62,22 @@ Each participant exposes one handler per event type. Every handler defaults to a
 | `onExternalReasoning` | another agent's inference returns a reasoning item |
 | `onModelMessage` | its own inference returns an assistant message |
 | `onExternalModelMessage` | another agent's inference returns an assistant message |
-| `onInternalEvent` | its own inference emits a semantic stream event |
-| `onExternalEvent` | another participant emits a semantic stream event |
+| `onInternalEvent` | its own inference emits a `SemanticEvent<T>` |
+| `onExternalEvent` | another participant emits a `SemanticEvent<T>` |
 
 The split between **self** handlers (`onFunctionCall`, `onReasoning`, `onModelMessage`, `onFunctionCallOutput`, `onInternalEvent`) and **`onExternal*`** handlers means a participant can encode "act on my own outputs" separately from "observe others", without inspecting `source` by hand.
 
 ## What flows on the bus
 
-Three kinds of events:
+Three kinds of events can be exchanged:
 
 - **Messages** — plain `string`s, used for conversational input/output. Delivered via `onMessage(message: string)` on every participant except the sender.
-- **`ContextItem`s** — typed model internals. Delivered via their dedicated handlers:
+- **`ContextItem`s** — typed model internals (completed inference and tool output). Delivered via their dedicated handlers:
   - `FunctionCallItem` → `onFunctionCall` / `onExternalFunctionCall`
   - `FunctionCallOutputItem` → `onFunctionCallOutput` / `onExternalFunctionCallOutput`
   - `ReasoningItem` → `onReasoning` / `onExternalReasoning`
   - `ModelMessageItem` → `onModelMessage` / `onExternalModelMessage`
-- **Semantic stream events** — provider-level chunks when model streaming is enabled. Delivered via `onInternalEvent` / `onExternalEvent`. See [Streaming](/docs/streaming).
+- **`SemanticEvent<T>`** — incremental provider stream chunks (`type` + `data`) while inference is streaming. The runner yields them; the environment delivers via `onInternalEvent` / `onExternalEvent`. See [Streaming](/docs/streaming) and [Core concepts](/docs/concepts#semanticevent).
 
 ## Fan-out semantics
 

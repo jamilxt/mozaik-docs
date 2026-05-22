@@ -10,7 +10,7 @@ Mozaik's object model is designed to match **[OpenResponses](https://www.openres
 
 - **Input (context)** — Client-supplied items such as `UserMessageItem`, `DeveloperMessageItem`, `SystemMessageItem`, and `FunctionCallOutputItem` (tool results fed back to the model).
 - **Output (response)** — Model-produced items such as `ReasoningItem`, `FunctionCallItem`, and `ModelMessageItem`.
-- **Streaming** — Items may arrive incrementally as **semantic events** (item-level updates), not only as raw token deltas. See [Streaming](/docs/streaming).
+- **Streaming** — Incremental provider output is exchanged as **`SemanticEvent<T>`** (`type` + `data`) on the environment before full items are assembled. See [Streaming](/docs/streaming).
 
 Mozaik turns that vocabulary into TypeScript classes you can construct, append to a `ModelContext`, serialize, and store.
 

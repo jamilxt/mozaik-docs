@@ -42,7 +42,7 @@ agent.runInference(environment, context, model);
 
 ## What this is doing
 
-1. **`AgenticEnvironment`** — An event bus for messages and `ContextItem`s. Once started, it fans every event out to every joined participant through the matching typed handler.
+1. **`AgenticEnvironment`** — An event bus for messages, `ContextItem`s, and `SemanticEvent<T>` stream chunks. Once started, it fans every event out to every joined participant through the matching typed handler.
 2. **`BaseHuman`** — Sends messages with `sendMessage(environment, text)`. Other participants receive them via `onMessage`.
 3. **`BaseAgent`** — Wraps an `InferenceRunner` and a `FunctionCallRunner`. `runInference` and `executeFunctionCall` stream their output back into the environment.
 4. **`ModelContext.create(projectId)`** — Allocates an empty context keyed by your own id (conversation, session, project). Participants typically append delivered events to the context they reason over.
@@ -60,7 +60,7 @@ New behaviors are added by **joining another participant**, not by editing the e
 
 The example uses the bundled runners:
 
-- **`OpenAIInferenceRunner`** — calls the model and yields `ReasoningItem` / `FunctionCallItem` / `ModelMessageItem` (and semantic events when [streaming](/docs/streaming) is enabled).
+- **`OpenAIInferenceRunner`** — calls the model and yields `ReasoningItem` / `FunctionCallItem` / `ModelMessageItem` (and `SemanticEvent<T>` when [streaming](/docs/streaming) is enabled).
 - **`DefaultFunctionCallRunner`** — resolves `FunctionCallItem`s against registered tools.
 
 For human input, call `sendMessage` from your UI or I/O layer when the user acts. Custom runner implementations are covered on the [Generators](/docs/generators) page.

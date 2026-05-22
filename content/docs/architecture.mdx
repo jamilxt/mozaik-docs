@@ -30,7 +30,7 @@ At runtime, the environment fans out three kinds of events:
 
 - **Messages** — plain `string`s, delivered via `onMessage(message)`.
 - **`ContextItem`s** — typed model internals (`FunctionCallItem`, `FunctionCallOutputItem`, `ReasoningItem`, `ModelMessageItem`), delivered via the matching typed handler.
-- **Semantic stream events** — when model streaming is enabled; see [Streaming](/docs/streaming).
+- **`SemanticEvent<T>`** — provider stream chunks (`type` + `data`) yielded during streaming inference; delivered via `onInternalEvent` / `onExternalEvent`. See [Streaming](/docs/streaming).
 
 For every typed context event there are two variants:
 

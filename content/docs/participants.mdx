@@ -4,7 +4,7 @@ description: The single abstraction for humans, agents, observers, and tools in 
 icon: Users
 ---
 
-In Mozaik, **everything that produces or consumes events is a `Participant`**: humans, reactive agents, transcript loggers, guardrails, UI streams. They all share one abstraction and one set of typed event handlers.
+In Mozaik, **everything that produces or consumes events is a `Participant`**: humans, reactive agents, transcript loggers, guardrails, UI streams. They all share one abstraction and one set of typed event handlers for **messages**, **`ContextItem`s**, and **`SemanticEvent<T>`** stream chunks.
 
 ```ts
 import { Participant } from '@mozaik-ai/core';
@@ -39,10 +39,10 @@ Every handler is a no-op in the base class, so a participant only needs to defin
 | `onExternalReasoning` | another agent's inference returns a reasoning item |
 | `onModelMessage` | its own inference returns an assistant message |
 | `onExternalModelMessage` | another agent's inference returns an assistant message |
-| `onInternalEvent` | its own inference emits a semantic stream event |
-| `onExternalEvent` | another participant emits a semantic stream event |
+| `onInternalEvent` | its own inference emits a `SemanticEvent<T>` |
+| `onExternalEvent` | another participant emits a `SemanticEvent<T>` |
 
-The split between **self** and **`onExternal*`** handlers lets a participant encode "act on my own outputs" separately from "observe others", with no manual `source` checks.
+The split between **self** and **`onExternal*`** handlers lets a participant encode "act on my own outputs" separately from "observe others", with no manual `source` checks. That applies to `ContextItem`s and to semantic events alike.
 
 ## Capabilities
 
@@ -51,7 +51,7 @@ Capabilities describe what a participant can *produce*. Each capability is a non
 | Role | Method | Produces |
 | --- | --- | --- |
 | `Human` / `BaseHuman` | `sendMessage(environment, message)` | messages (strings) via `onMessage` on other participants |
-| `BaseAgent` | `runInference(environment, context, model)` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`, and semantic events when streaming |
+| `BaseAgent` | `runInference(environment, context, model)` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`, and `SemanticEvent<T>` when streaming |
 | `BaseAgent` | `executeFunctionCall(environment, call)` | `FunctionCallOutputItem` |
 
 Capability methods return `Promise<void>` and pump their underlying generator into the environment event-by-event. **Callers never `await` a capability for its result** — they `await` only if they care about completion. This is what allows multiple participants to act on the same environment concurrently.

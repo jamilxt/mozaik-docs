@@ -5,7 +5,7 @@ active: blue
 icon: Rocket
 ---
 
-Humans, agents, observers, and tools are all `Participant`s of the same `AgenticEnvironment`. Each participant emits events — plain-text **messages** and typed `ContextItem`s for model internals (function calls, outputs, reasoning, model messages) — and every other participant sees those events as they arrive and decides whether to react, intercept, or stay silent. No central scheduler.
+Humans, agents, observers, and tools are all `Participant`s of the same `AgenticEnvironment`. Each participant emits events — plain-text **messages**, typed **`ContextItem`s** for model internals (function calls, outputs, reasoning, model messages), and **`SemanticEvent<T>`** stream chunks when inference is streaming — and every other participant sees those events as they arrive and decides whether to react, intercept, or stay silent. No central scheduler.
 
 ## Get started
 

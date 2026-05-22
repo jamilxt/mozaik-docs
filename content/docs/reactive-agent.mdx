@@ -120,7 +120,7 @@ For every typed event there are two handlers:
 | `onFunctionCallOutput` | `onExternalFunctionCallOutput` |
 | `onReasoning` | `onExternalReasoning` |
 | `onModelMessage` | `onExternalModelMessage` |
-| `onInternalEvent` | `onExternalEvent` |
+| `onInternalEvent` (`SemanticEvent<T>`) | `onExternalEvent` (`SemanticEvent<T>`) |
 
 The reactive agent above reacts to its **own** outputs (loop the model with tool results) and is silent on what other agents emit. To collaborate with peers, override the `onExternal*` handlers as well — for example, override `onExternalModelMessage` to critique another agent's reply.
 
