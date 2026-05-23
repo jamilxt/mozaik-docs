@@ -1,10 +1,10 @@
 ---
 title: Quickstart
-description: Spin up an event-driven AgenticEnvironment, join a human and an agent participant, and produce events concurrently.
+description: Join a human and an agent on an AgenticEnvironment, send a message, and let the agent react through typed, non-blocking event handlers.
 icon: Zap
 ---
 
-This walkthrough mirrors the example in the [Mozaik README](https://github.com/jigjoy-ai/mozaik): create an `AgenticEnvironment`, `join` a `BaseHuman` and a `BaseAgent`, and trigger their capabilities so they produce events into the environment in parallel.
+This walkthrough mirrors the example in the [Mozaik README](https://github.com/jigjoy-ai/mozaik): create an `AgenticEnvironment`, `join` a `BaseHuman` and a `BaseAgent`, start the bus, and send a message. The agent does not need a separate “start inference” call — it reacts to events like any other participant.
 
 ## Full example
 
@@ -15,8 +15,6 @@ import {
   BaseHuman,
   OpenAIInferenceRunner,
   DefaultFunctionCallRunner,
-  Gpt54Mini,
-  ModelContext,
 } from '@mozaik-ai/core';
 
 const environment = new AgenticEnvironment();
@@ -32,33 +30,47 @@ agent.join(environment);
 
 environment.start();
 
-const context = ModelContext.create('demo');
-const model = new Gpt54Mini();
-
-// Both participants produce events in parallel — neither awaits the other.
 human.sendMessage(environment, 'Hello');
-agent.runInference(environment, context, model);
 ```
+
+Out of the box, `BaseAgent` does not run inference on its own. A **reactive agent** overrides `onMessage` (and other handlers) to call `runInference` and `executeFunctionCall` when events arrive. See [Reactive Agent](/docs/reactive-agent) for the full class.
 
 ## What this is doing
 
 1. **`AgenticEnvironment`** — An event bus for messages, `ContextItem`s, and `SemanticEvent<T>` stream chunks. Once started, it fans every event out to every joined participant through the matching typed handler.
 2. **`BaseHuman`** — Sends messages with `sendMessage(environment, text)`. Other participants receive them via `onMessage`.
-3. **`BaseAgent`** — Wraps an `InferenceRunner` and a `FunctionCallRunner`. `runInference` and `executeFunctionCall` stream their output back into the environment.
-4. **`ModelContext.create(projectId)`** — Allocates an empty context keyed by your own id (conversation, session, project). Participants typically append delivered events to the context they reason over.
-5. **`human.sendMessage` / `agent.runInference`** — Capability methods. They return `Promise<void>` immediately and stream events in the background, so neither call blocks the other.
+3. **`BaseAgent`** — Wraps an `InferenceRunner` and a `FunctionCallRunner`. You trigger `runInference` and `executeFunctionCall` from your handlers when the agent should act — not from a central orchestrator.
+4. **`human.sendMessage`** — A capability method. It returns `Promise<void>` immediately; delivery and every downstream reaction happen in the background.
 
-## Where events go
+## How the agent reacts (non-blocking)
 
-The human's message is delivered via `onMessage(message)` to every other participant. The agent's inference yields typed items, which the environment delivers via the matching handler — `onFunctionCall`, `onReasoning`, `onModelMessage` — and their `onExternal*` variants on every other participant.
+When the human calls `sendMessage`, the environment delivers `onMessage(message)` to every other participant. A reactive agent typically overrides that handler to record the message and call `runInference`:
 
-A reactive agent typically overrides `onMessage` (record + run inference), `onFunctionCall` (execute the tool), and `onFunctionCallOutput` (feed the result back and run inference again). See the [Reactive Agent](/docs/reactive-agent) page for the full pattern.
+```ts
+async onMessage(message: string): Promise<void> {
+  this.context.addContextItem(UserMessageItem.create(message));
+  this.runInference(this.environment, this.context, this.model);
+}
+```
 
-New behaviors are added by **joining another participant**, not by editing the existing ones.
+`runInference` is also non-blocking. The handler returns right away, so the agent can accept another `onMessage`, react to other participants, or handle unrelated events while the model is still running.
+
+When inference finishes, the runner streams `ContextItem`s back into the environment. The agent receives them through its own handlers — `onFunctionCall`, `onReasoning`, `onModelMessage` — where it can record context, execute tools, or run inference again. Other participants see the same items via `onExternal*` handlers.
+
+That is the core idea: **capabilities produce events; handlers react to events; nothing blocks the bus.**
+
+| Step | What happens |
+| --- | --- |
+| Human sends | `sendMessage` → `onMessage` on the agent (and everyone else except the sender) |
+| Agent reacts | Override `onMessage` → `runInference` (returns immediately) |
+| Model streams | `onReasoning`, `onFunctionCall`, `onModelMessage` on the agent; `onExternal*` on observers and peers |
+| Tool loop | Override `onFunctionCall` → `executeFunctionCall` → `onFunctionCallOutput` → `runInference` again |
+
+For the complete handler set (`onFunctionCallOutput`, context setup, joining), see the [Reactive Agent](/docs/reactive-agent) page.
 
 ## What you'll need
 
-The example uses the bundled runners:
+The example wires the bundled runners into `BaseAgent`:
 
 - **`OpenAIInferenceRunner`** — calls the model and yields `ReasoningItem` / `FunctionCallItem` / `ModelMessageItem` (and `SemanticEvent<T>` when [streaming](/docs/streaming) is enabled).
 - **`DefaultFunctionCallRunner`** — resolves `FunctionCallItem`s against registered tools.

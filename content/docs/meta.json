@@ -4,15 +4,15 @@
     "index",
     "installation",
     "quickstart",
+    "concepts",
     "architecture",
     "agentic-environment",
     "participants",
     "reactive-agent",
     "streaming",
     "generators",
-    "concepts",
     "open-responses",
-    "package-exports",
-    "agent-swarms"
+    "agent-swarms",
+    "package-exports"
   ]
 }
