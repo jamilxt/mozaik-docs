@@ -8,9 +8,12 @@
     "architecture",
     "agentic-environment",
     "participants",
+    "selective-listening",
     "reactive-agent",
+    "capabilities",
     "streaming",
-    "generators",
+    "structured-output",
+    "error-handling",
     "open-responses",
     "agent-swarms",
     "package-exports"

@@ -1,0 +1,91 @@
+---
+title: Capabilities & Tools
+description: The free functions a participant uses to produce events — runInference, executeFunctionCall, sendMessage — and how to declare tools.
+icon: Cog
+---
+
+Capabilities are what a participant can *produce*. In Mozaik they are **free functions**, not methods on a base class. A participant calls them and passes itself as `caller`; each one is non-blocking and streams its events into the environment as they are produced.
+
+| Function | Produces |
+| --- | --- |
+| `runInference(params)` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`, and `SemanticEvent<T>` when streaming |
+| `executeFunctionCall(environment, item, tool, caller)` | `FunctionCallOutputItem` |
+| `sendMessage(environment, message, caller)` | a message delivered via `onMessage` on every other participant |
+
+None of these return a result to `await` — they return immediately and emit events in the background, which is what lets multiple participants act on the same environment concurrently.
+
+## runInference
+
+`runInference` takes a single `InferenceParams` object:
+
+```ts
+import { runInference } from '@mozaik-ai/core';
+
+runInference({
+  model: 'gpt-5.5',        // ModelName — resolves the provider
+  context,                  // ModelContext to reason over
+  caller: this,             // the producing participant
+  environment,              // where to deliver the results
+  tools,                    // optional Tool[]
+  streaming: true,          // optional — see Streaming
+  structuredOutput,         // optional — see Structured output
+  maxOutputTokens: 1024,    // optional
+  reasoningEffort: 'medium',// optional
+  signal,                   // optional AbortSignal
+});
+```
+
+The resulting items are delivered to the caller through `onReasoning` / `onFunctionCall` / `onModelMessage`, and to every other participant through the `onExternal*` variants.
+
+## sendMessage
+
+```ts
+import { sendMessage } from '@mozaik-ai/core';
+
+sendMessage(environment, 'Hello', human);
+```
+
+Every other participant receives the string through `onMessage(message)`. Wire your app's input (stdin, websocket, HTTP) by calling `sendMessage` when the user acts.
+
+## executeFunctionCall and Tools
+
+A `Tool` is a function declaration with its own executor: `name`, `description`, JSON Schema `parameters`, `strict`, and an `invoke(args)` that runs the call.
+
+```ts
+import { Tool } from '@mozaik-ai/core';
+
+const getWeather: Tool = {
+  type: 'function',
+  name: 'get_weather',
+  description: 'Get the current weather for a city',
+  parameters: {
+    type: 'object',
+    properties: { city: { type: 'string' } },
+    required: ['city'],
+    additionalProperties: false,
+  },
+  strict: true,
+  invoke: async ({ city }: { city: string }) => ({ city, temperature: 21, condition: 'sunny' }),
+};
+```
+
+Pass tools on the `runInference` params. When the model emits a `FunctionCallItem`, run it with `executeFunctionCall`, which calls the matching tool's `invoke` and emits a `FunctionCallOutputItem`:
+
+```ts
+import { executeFunctionCall, FunctionCallItem } from '@mozaik-ai/core';
+
+async onFunctionCall(item: FunctionCallItem): Promise<void> {
+  this.context.addContextItem(item);
+  const tool = this.tools.find((t) => t.name === item.name);
+  if (tool) executeFunctionCall(this.environment, item, tool, this);
+}
+```
+
+The output arrives back through `onFunctionCallOutput`, where a reactive agent typically records it and calls `runInference` again so the model can use the result. See the full loop on the [Reactive Agent](/docs/reactive-agent) page.
+
+<Cards>
+  <Card title="Participants" href="/docs/participants" description="How a participant calls these capabilities from its handlers." />
+  <Card title="Agentic environment" href="/docs/agentic-environment" description="Where the events end up." />
+  <Card title="Streaming" href="/docs/streaming" description="Semantic events when streaming is enabled." />
+  <Card title="Structured output" href="/docs/structured-output" description="Constrain runInference output to a JSON Schema." />
+</Cards>

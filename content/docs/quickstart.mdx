@@ -4,43 +4,49 @@ description: Join a human and an agent on an AgenticEnvironment, send a message,
 icon: Zap
 ---
 
-This walkthrough mirrors the example in the [Mozaik README](https://github.com/jigjoy-ai/mozaik): create an `AgenticEnvironment`, `join` a `BaseHuman` and a `BaseAgent`, start the bus, and send a message. The agent does not need a separate “start inference” call — it reacts to events like any other participant.
+This walkthrough mirrors the example in the [Mozaik README](https://github.com/jigjoy-ai/mozaik): create an `AgenticEnvironment`, build participants from `BaseParticipant`, `join` them, and send a message. The agent does not need a separate "start inference" call — it reacts to events like any other participant.
 
 ## Full example
 
 ```ts
 import {
   AgenticEnvironment,
-  BaseAgent,
-  BaseHuman,
-  OpenAIInferenceRunner,
-  DefaultFunctionCallRunner,
+  BaseParticipant,
+  ModelContext,
+  UserMessageItem,
+  runInference,
+  sendMessage,
 } from '@mozaik-ai/core';
 
 const environment = new AgenticEnvironment();
 
-const human = new BaseHuman();
-const agent = new BaseAgent(
-  new OpenAIInferenceRunner(),
-  new DefaultFunctionCallRunner(),
-);
+const human = new BaseParticipant();
+
+class Agent extends BaseParticipant {
+  private readonly context = ModelContext.create('demo');
+
+  async onMessage(message: string): Promise<void> {
+    this.context.addContextItem(UserMessageItem.create(message));
+    runInference({ model: 'gpt-5.5', context: this.context, caller: this, environment });
+  }
+}
+
+const agent = new Agent();
 
 human.join(environment);
 agent.join(environment);
 
-environment.start();
-
-human.sendMessage(environment, 'Hello');
+sendMessage(environment, 'Hello', human);
 ```
 
-Out of the box, `BaseAgent` does not run inference on its own. A **reactive agent** overrides `onMessage` (and other handlers) to call `runInference` and `executeFunctionCall` when events arrive. See [Reactive Agent](/docs/reactive-agent) for the full class.
+A participant reacts as soon as it `join()`s the environment. There is no separate bus to start — the environment fans every event out to every joined participant as it is produced.
 
 ## What this is doing
 
-1. **`AgenticEnvironment`** — An event bus for messages, `ContextItem`s, and `SemanticEvent<T>` stream chunks. Once started, it fans every event out to every joined participant through the matching typed handler.
-2. **`BaseHuman`** — Sends messages with `sendMessage(environment, text)`. Other participants receive them via `onMessage`.
-3. **`BaseAgent`** — Wraps an `InferenceRunner` and a `FunctionCallRunner`. You trigger `runInference` and `executeFunctionCall` from your handlers when the agent should act — not from a central orchestrator.
-4. **`human.sendMessage`** — A capability method. It returns `Promise<void>` immediately; delivery and every downstream reaction happen in the background.
+1. **`AgenticEnvironment`** — An event bus for messages, `ContextItem`s, and `SemanticEvent<T>` stream chunks. It fans every event out to every joined participant through the matching typed handler.
+2. **`BaseParticipant`** — The base class every participant extends. Every handler is a no-op, so you override only the ones you care about. A "human" is just a participant that calls `sendMessage`; an "agent" is one that calls `runInference`.
+3. **`sendMessage(environment, message, caller)`** — A capability function. Other participants receive the message via `onMessage`. It returns immediately; delivery and every downstream reaction happen in the background.
+4. **`runInference({ ... })`** — A capability function the agent calls from its handlers. It is fire-and-forget: it returns right away while the model runs.
 
 ## How the agent reacts (non-blocking)
 
@@ -49,11 +55,11 @@ When the human calls `sendMessage`, the environment delivers `onMessage(message)
 ```ts
 async onMessage(message: string): Promise<void> {
   this.context.addContextItem(UserMessageItem.create(message));
-  this.runInference(this.environment, this.context, this.model);
+  runInference({ model: 'gpt-5.5', context: this.context, caller: this, environment: this.environment });
 }
 ```
 
-`runInference` is also non-blocking. The handler returns right away, so the agent can accept another `onMessage`, react to other participants, or handle unrelated events while the model is still running.
+`runInference` is non-blocking. The handler returns right away, so the agent can accept another `onMessage`, react to other participants, or handle unrelated events while the model is still running.
 
 When inference finishes, the runner streams `ContextItem`s back into the environment. The agent receives them through its own handlers — `onFunctionCall`, `onReasoning`, `onModelMessage` — where it can record context, execute tools, or run inference again. Other participants see the same items via `onExternal*` handlers.
 
@@ -61,25 +67,24 @@ That is the core idea: **capabilities produce events; handlers react to events; 
 
 | Step | What happens |
 | --- | --- |
-| Human sends | `sendMessage` → `onMessage` on the agent (and everyone else except the sender) |
-| Agent reacts | Override `onMessage` → `runInference` (returns immediately) |
+| Human sends | `sendMessage(environment, text, human)` → `onMessage` on the agent (and everyone else except the sender) |
+| Agent reacts | Override `onMessage` → `runInference({ ... })` (returns immediately) |
 | Model streams | `onReasoning`, `onFunctionCall`, `onModelMessage` on the agent; `onExternal*` on observers and peers |
-| Tool loop | Override `onFunctionCall` → `executeFunctionCall` → `onFunctionCallOutput` → `runInference` again |
+| Tool loop | Override `onFunctionCall` → `executeFunctionCall(environment, item, tool, caller)` → `onFunctionCallOutput` → `runInference` again |
 
 For the complete handler set (`onFunctionCallOutput`, context setup, joining), see the [Reactive Agent](/docs/reactive-agent) page.
 
 ## What you'll need
 
-The example wires the bundled runners into `BaseAgent`:
+- A **`ModelContext`** the agent appends items to (`ModelContext.create('demo')`).
+- A **`ModelName`** for `runInference` (for example `'gpt-5.5'`). The provider is resolved from the model name; set the matching API key — see [Installation](/docs/installation).
+- For human input, call `sendMessage` from your UI or I/O layer when the user acts.
 
-- **`OpenAIInferenceRunner`** — calls the model and yields `ReasoningItem` / `FunctionCallItem` / `ModelMessageItem` (and `SemanticEvent<T>` when [streaming](/docs/streaming) is enabled).
-- **`DefaultFunctionCallRunner`** — resolves `FunctionCallItem`s against registered tools.
-
-For human input, call `sendMessage` from your UI or I/O layer when the user acts. Custom runner implementations are covered on the [Generators](/docs/generators) page.
+The capability functions and `Tool` definitions are covered on the [Capabilities & Tools](/docs/capabilities) page.
 
 <Cards>
-  <Card title="Reactive Agent" href="/docs/reactive-agent" description="Turn the base agent into a reactive agent with typed handlers." />
+  <Card title="Reactive Agent" href="/docs/reactive-agent" description="Turn a base participant into a reactive agent with typed handlers." />
   <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus and how participants join, react, and emit." />
   <Card title="Participants" href="/docs/participants" description="Capabilities, observer and reactive agent patterns." />
-  <Card title="Generators" href="/docs/generators" description="Build custom InferenceRunner / FunctionCallRunner implementations." />
+  <Card title="Capabilities & Tools" href="/docs/capabilities" description="runInference, executeFunctionCall, sendMessage, and Tool definitions." />
 </Cards>

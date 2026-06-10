@@ -14,17 +14,24 @@ Mozaik's object model is designed to match **[OpenResponses](https://www.openres
 
 Mozaik turns that vocabulary into TypeScript classes you can construct, append to a `ModelContext`, serialize, and store.
 
-## Default inference path
+## Provider resolution
 
-The bundled **`OpenAIInferenceRunner`** maps `ModelContext` to the OpenAI Responses API and yields typed `ContextItem`s into the environment (and semantic events when [streaming](/docs/streaming) is enabled). Pass it into `BaseAgent` along with a `FunctionCallRunner` — see [Generators](/docs/generators).
+You select a model by its `ModelName` string when you call `runInference`. Mozaik resolves the name to a provider endpoint and model specification internally, maps the `ModelContext` to that provider's API, and returns typed `ContextItem`s (and `SemanticEvent`s when [streaming](/docs/streaming) is enabled).
 
-Available models: `Gpt54`, `Gpt54Mini`, `Gpt54Nano`, `Gpt55`.
+| Provider | `ModelName` values |
+| --- | --- |
+| OpenAI | `"gpt-5.4"`, `"gpt-5.4-mini"`, `"gpt-5.4-nano"`, `"gpt-5.5"` |
+| Anthropic | `"claude-haiku-4-5"`, `"claude-sonnet-4-6"`, `"claude-opus-4-7"`, `"claude-opus-4-8"` |
+| Gemini | `"gemini-3.5-flash"`, `"gemini-3.1-pro-preview"` |
+| DeepSeek | `"deepseek-v4-flash"`, `"deepseek-v4-pro"` |
+
+Structured output uses the same `ModelMessageItem` shape — valid JSON in the text field, no new item type. See [Structured output](/docs/structured-output).
 
 ## Why it matters
 
 When your domain model follows a provider-agnostic spec:
 
-- Swapping or combining providers becomes a smaller change — you implement a new `InferenceRunner`, not a new domain model.
+- Swapping or combining providers becomes a smaller change — you change the `ModelName`, not your domain model.
 - Persistence and replay stay stable — your database stores **typed context items**, not one-off JSON blobs per vendor.
 - Tool use, reasoning traces, and assistant messages share one mental model across the whole environment.
 

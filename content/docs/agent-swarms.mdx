@@ -44,49 +44,41 @@ A conceptual 2-agent sketch (planner + executor):
 
 ```ts
 import {
-  BaseAgent,
+  BaseParticipant,
   Participant,
   ModelMessageItem,
   UserMessageItem,
   AgenticEnvironment,
   ModelContext,
-  GenerativeModel,
-  InferenceRunner,
-  FunctionCallRunner,
+  runInference,
 } from '@mozaik-ai/core';
 
-export class PlannerAgent extends BaseAgent {
+export class PlannerAgent extends BaseParticipant {
   constructor(
-    inferenceRunner: InferenceRunner,
-    functionCallRunner: FunctionCallRunner,
     private env: AgenticEnvironment,
     private ctx: ModelContext,
-    private model: GenerativeModel,
   ) {
-    super(inferenceRunner, functionCallRunner);
+    super();
   }
 
   async onMessage(message: string): Promise<void> {
     this.ctx.addContextItem(UserMessageItem.create(`Plan this goal: ${message}`));
-    this.runInference(this.env, this.ctx, this.model);
+    runInference({ model: 'gpt-5.5', context: this.ctx, caller: this, environment: this.env });
   }
 }
 
-export class ExecutorAgent extends BaseAgent {
+export class ExecutorAgent extends BaseParticipant {
   constructor(
-    inferenceRunner: InferenceRunner,
-    functionCallRunner: FunctionCallRunner,
     private env: AgenticEnvironment,
     private ctx: ModelContext,
-    private model: GenerativeModel,
   ) {
-    super(inferenceRunner, functionCallRunner);
+    super();
   }
 
   // React to *another* agent's model message (e.g. the planner's plan).
   async onExternalModelMessage(source: Participant, item: ModelMessageItem): Promise<void> {
     this.ctx.addContextItem(item);
-    this.runInference(this.env, this.ctx, this.model);
+    runInference({ model: 'gpt-5.5', context: this.ctx, caller: this, environment: this.env });
   }
 }
 ```
@@ -101,9 +93,7 @@ executor.join(environment);
 reviewer.join(environment);
 transcriptLogger.join(environment);
 
-environment.start();
-
-human.sendMessage(environment, 'Build a REST API'); // kicks off the planner
+sendMessage(environment, 'Build a REST API', human); // kicks off the planner
 ```
 
 Every participant sees every event. The planner reacts to the human, the executor reacts to the planner, the reviewer reacts to the executor, and the logger sees all of it. None of them know about each other directly — they only know which handlers they care about.

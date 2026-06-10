@@ -4,18 +4,18 @@ description: Main entry point and typed exports for @mozaik-ai/core.
 icon: Box
 ---
 
-The primary API is exported from **`@mozaik-ai/core`**. The table below reflects the public [`src/index.ts`](https://github.com/jigjoy-ai/mozaik/blob/main/src/index.ts); your installed version may add or refine symbols — always check `node_modules/@mozaik-ai/core` for the exact set.
+The primary API is exported from **`@mozaik-ai/core`**. The table below reflects the public [`src/index.ts`](https://github.com/jigjoy-ai/mozaik/blob/development/src/index.ts); your installed version may add or refine symbols — always check `node_modules/@mozaik-ai/core` for the exact set.
 
 ## Main entry
 
 | Category | Exports |
 | --- | --- |
-| **Agentic environment** | `AgenticEnvironment`, `Participant`, `Human`, `Agent`, `Observer`, `BaseHuman`, `BaseAgent`, `BaseObserver` |
-| **Runners** | `InferenceRunner`, `FunctionCallRunner`, `OpenAIInferenceRunner`, `DefaultFunctionCallRunner` |
-| **Context** | `ModelContext`, `ModelContextRepository`, `InMemoryModelContextRepository`, `ContextItem` |
+| **Agentic environment** | `AgenticEnvironment`, `Participant`, `BaseParticipant`, `AgenticError` |
+| **Capabilities** | `runInference`, `executeFunctionCall`, `sendMessage`, `InferenceParams`, `InferenceResponse` |
+| **Context** | `ModelContext`, `ModelContextRepository`, `InMemoryModelContextRepository`, `ContextItem`, `SemanticEvent` |
 | **Client items** | `UserMessageItem`, `DeveloperMessageItem`, `SystemMessageItem`, `FunctionCallOutputItem` |
 | **Model items** | `ModelMessageItem`, `FunctionCallItem`, `ReasoningItem` |
-| **Inference** | `GenerativeModel`, `Gpt54`, `Gpt54Mini`, `Gpt54Nano`, `Gpt55`, `Tool` |
+| **Models** | `ModelName`, `Tool`, `Endpoint`, `StructuredOutputFormat` |
 | **Usage** | `TokenUsage`, `InputTokenDetails`, `OutputTokenDetails` |
 
 Import example:
@@ -23,21 +23,19 @@ Import example:
 ```ts
 import {
   AgenticEnvironment,
-  BaseAgent,
-  BaseHuman,
-  BaseObserver,
-  OpenAIInferenceRunner,
-  DefaultFunctionCallRunner,
+  BaseParticipant,
+  runInference,
+  executeFunctionCall,
+  sendMessage,
   ModelContext,
   UserMessageItem,
   DeveloperMessageItem,
   Tool,
-  Gpt54Mini,
   InMemoryModelContextRepository,
 } from '@mozaik-ai/core';
 ```
 
 ## Source of truth
 
-- [github.com/jigjoy-ai/mozaik — `src/index.ts`](https://github.com/jigjoy-ai/mozaik/blob/main/src/index.ts)
+- [github.com/jigjoy-ai/mozaik — `src/index.ts`](https://github.com/jigjoy-ai/mozaik/blob/development/src/index.ts)
 - [npm — `@mozaik-ai/core`](https://www.npmjs.com/package/@mozaik-ai/core)

@@ -6,21 +6,33 @@ icon: Users
 
 In Mozaik, **everything that produces or consumes events is a `Participant`**: humans, reactive agents, transcript loggers, guardrails, UI streams. They all share one abstraction and one set of typed event handlers for **messages**, **`ContextItem`s**, and **`SemanticEvent<T>`** stream chunks.
 
-```ts
-import { Participant } from '@mozaik-ai/core';
+Use `BaseParticipant` as your base class — every handler it defines is a no-op, so you only override the events you actually care about:
 
-class MyParticipant extends Participant {
+```ts
+import { BaseParticipant } from '@mozaik-ai/core';
+
+class MyParticipant extends BaseParticipant {
   async onMessage(message: string): Promise<void> {
     // observe, react, or ignore
   }
 }
 ```
 
-Every handler is a no-op in the base class, so a participant only needs to define the events it actually cares about. A participant can:
+A participant can:
 
 - **Observe** events from other participants (telemetry, audit, UI streaming).
 - **React** to events by triggering its own capabilities (turn an incoming `onMessage` into an inference run, turn an `onFunctionCall` into a tool execution).
 - **Ignore** events it does not care about — handlers it doesn't override are no-ops.
+
+## Roles are patterns, not classes
+
+There are no separate `BaseHuman` / `BaseAgent` / `BaseObserver` classes. A participant's *role* is simply which capability functions it calls and which handlers it overrides:
+
+| Role | How to build it |
+| --- | --- |
+| **Human** | A participant that calls `sendMessage(environment, text, caller)` |
+| **Agent** | A participant that calls `runInference(...)` and `executeFunctionCall(...)` |
+| **Observer** | A participant that only overrides handlers and never runs inference |
 
 ## Typed handlers
 
@@ -41,81 +53,46 @@ Every handler is a no-op in the base class, so a participant only needs to defin
 | `onExternalModelMessage` | another agent's inference returns an assistant message |
 | `onInternalEvent` | its own inference emits a `SemanticEvent<T>` |
 | `onExternalEvent` | another participant emits a `SemanticEvent<T>` |
+| `onError` | one of its own handlers throws |
+| `onParticipantError` | another participant's handler throws |
 
 The split between **self** and **`onExternal*`** handlers lets a participant encode "act on my own outputs" separately from "observe others", with no manual `source` checks. That applies to `ContextItem`s and to semantic events alike.
 
 ## Capabilities
 
-Capabilities describe what a participant can *produce*. Each capability is a non-blocking method that streams events into the environment.
+Capabilities describe what a participant can *produce*. Each is a non-blocking free function that streams events into the environment; the participant passes itself as `caller`.
 
-| Role | Method | Produces |
-| --- | --- | --- |
-| `Human` / `BaseHuman` | `sendMessage(environment, message)` | messages (strings) via `onMessage` on other participants |
-| `BaseAgent` | `runInference(environment, context, model)` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`, and `SemanticEvent<T>` when streaming |
-| `BaseAgent` | `executeFunctionCall(environment, call)` | `FunctionCallOutputItem` |
-
-Capability methods return `Promise<void>` and pump their underlying generator into the environment event-by-event. **Callers never `await` a capability for its result** — they `await` only if they care about completion. This is what allows multiple participants to act on the same environment concurrently.
-
-## BaseHuman
-
-A ready-to-use participant for human input. Sends messages with `sendMessage(environment, text)`.
-
-```ts
-import { BaseHuman } from '@mozaik-ai/core';
-
-const human = new BaseHuman();
-human.join(environment);
-human.sendMessage(environment, 'Hello');
-```
-
-Wire your app's input (stdin, websocket, HTTP) by calling `sendMessage` when the user acts — no generator interface required.
-
-## BaseAgent
-
-A ready-to-use agent participant. Wraps `InferenceRunner` and `FunctionCallRunner`, and exposes `runInference` and `executeFunctionCall`.
-
-```ts
-import {
-  BaseAgent,
-  OpenAIInferenceRunner,
-  DefaultFunctionCallRunner,
-} from '@mozaik-ai/core';
-
-const agent = new BaseAgent(
-  new OpenAIInferenceRunner(),
-  new DefaultFunctionCallRunner(),
-);
-
-agent.join(environment);
-agent.runInference(environment, context, model);
-```
-
-| Capability | Pulls from |
+| Function | Produces |
 | --- | --- |
-| `runInference` | `InferenceRunner` |
-| `executeFunctionCall` | `FunctionCallRunner` |
+| `sendMessage(environment, message, caller)` | messages (strings) via `onMessage` on other participants |
+| `runInference({ model, context, caller, environment, ... })` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`, and `SemanticEvent<T>` when streaming |
+| `executeFunctionCall(environment, item, tool, caller)` | `FunctionCallOutputItem` |
 
-Customize *what* the agent does by overriding the typed handlers (decide when to call inference, tools, etc.). Customize *how* it does it by swapping the [generators](/docs/generators).
+Capability functions return immediately and emit their events as they are produced. **Callers never `await` a capability for its result** — this is what allows multiple participants to act on the same environment concurrently. They are covered in full on [Capabilities & Tools](/docs/capabilities).
 
-## BaseObserver
+## Membership
 
-A ready-to-use listen-only participant. Every handler is a no-op in the base class — override only the events you care about. Use it instead of subclassing `Participant` when you only need to observe.
+A participant joins and leaves environments directly:
 
 ```ts
-import { BaseObserver } from '@mozaik-ai/core';
+import { BaseParticipant } from '@mozaik-ai/core';
 
-const logger = new BaseObserver();
-logger.join(environment);
+const participant = new BaseParticipant();
+participant.join(environment);
+// ...
+participant.leave(environment);
 ```
+
+`join` registers the participant (it gets `onJoined`, others get `onParticipantJoined`). `leave` unregisters it (it gets `onLeft`, others get `onParticipantLeft`).
 
 ## Lifecycle hooks
 
 Every participant receives lifecycle notifications when it or others join or leave an environment:
 
 ```ts
-import { BaseAgent, Participant } from '@mozaik-ai/core';
+import { BaseParticipant, Participant } from '@mozaik-ai/core';
 
-export class TeamAgent extends BaseAgent {
+export class TeamAgent extends BaseParticipant {
   onJoined(): void {
     console.log('I joined the environment');
   }
@@ -134,18 +111,17 @@ export class TeamAgent extends BaseAgent {
 }
 ```
 
-Call `participant.leave(environment)` to unregister. Remaining participants receive `onParticipantLeft` for the one that left.
-
 This lets participants react to membership changes — for example, an agent could start inference only after a required collaborator has joined, or clean up shared state when someone leaves.
 
 ## Patterns
 
 ### Passive observer
 
-Subclass `Participant` or extend `BaseObserver` and just consume events. No inference capabilities required.
+Extend `BaseParticipant` and just consume events. No inference capabilities required.
 
 ```ts
 import {
+  BaseParticipant,
   Participant,
   FunctionCallItem,
   FunctionCallOutputItem,
@@ -153,40 +129,38 @@ import {
   ModelMessageItem,
 } from '@mozaik-ai/core';
 
-export class TranscriptLogger extends Participant {
+export class TranscriptLogger extends BaseParticipant {
   async onMessage(message: string): Promise<void> {
     console.log('[message]', message);
   }
 
   async onExternalFunctionCall(source: Participant, item: FunctionCallItem): Promise<void> {
-    console.log(`[${source.constructor.name}] function_call`, item.toJSON());
+    console.log(`[${source.constructor.name}] function_call`, item);
   }
 
   async onExternalFunctionCallOutput(source: Participant, item: FunctionCallOutputItem): Promise<void> {
-    console.log(`[${source.constructor.name}] function_call_output`, item.toJSON());
+    console.log(`[${source.constructor.name}] function_call_output`, item);
   }
 
   async onExternalReasoning(source: Participant, item: ReasoningItem): Promise<void> {
-    console.log(`[${source.constructor.name}] reasoning`, item.toJSON());
+    console.log(`[${source.constructor.name}] reasoning`, item);
   }
 
   async onExternalModelMessage(source: Participant, item: ModelMessageItem): Promise<void> {
-    console.log(`[${source.constructor.name}] model_message`, item.toJSON());
+    console.log(`[${source.constructor.name}] model_message`, item);
   }
 }
 ```
-
-For listen-only use, `BaseObserver` is equivalent — override the same `onExternal*` handlers without implementing no-op self handlers.
 
 Drop one of these into any environment and you have a live transcript. Add another that pushes to a websocket and you have a UI stream. None of the existing participants change.
 
 ### Reactive agent
 
-A reactive agent extends `BaseAgent` and overrides only the handlers it wants to react on. Each handler is already a no-op in the base class, so only the relevant ones need bodies.
+A reactive agent extends `BaseParticipant` and overrides only the handlers it wants to react on. Capabilities are the free functions `runInference` and `executeFunctionCall` — the participant passes itself as `caller`.
 
 ```ts
 import {
-  BaseAgent,
+  BaseParticipant,
   UserMessageItem,
   FunctionCallItem,
   FunctionCallOutputItem,
@@ -194,35 +168,46 @@ import {
   ModelMessageItem,
   AgenticEnvironment,
   ModelContext,
-  GenerativeModel,
-  InferenceRunner,
-  FunctionCallRunner,
+  Tool,
+  runInference,
+  executeFunctionCall,
 } from '@mozaik-ai/core';
 
-export class ReactiveAgent extends BaseAgent {
+export class ReactiveAgent extends BaseParticipant {
   constructor(
-    inferenceRunner: InferenceRunner,
-    functionCallRunner: FunctionCallRunner,
     private readonly environment: AgenticEnvironment,
     private readonly context: ModelContext,
-    private readonly model: GenerativeModel,
+    private readonly tools: Tool[] = [],
   ) {
-    super(inferenceRunner, functionCallRunner);
+    super();
   }
 
   async onMessage(message: string): Promise<void> {
     this.context.addContextItem(UserMessageItem.create(message));
-    this.runInference(this.environment, this.context, this.model);
+    runInference({
+      model: 'gpt-5.5',
+      context: this.context,
+      tools: this.tools,
+      caller: this,
+      environment: this.environment,
+    });
   }
 
   async onFunctionCall(item: FunctionCallItem): Promise<void> {
     this.context.addContextItem(item);
-    this.executeFunctionCall(this.environment, item);
+    const tool = this.tools.find((t) => t.name === item.name);
+    if (tool) executeFunctionCall(this.environment, item, tool, this);
   }
 
   async onFunctionCallOutput(item: FunctionCallOutputItem): Promise<void> {
     this.context.addContextItem(item);
-    this.runInference(this.environment, this.context, this.model);
+    runInference({
+      model: 'gpt-5.5',
+      context: this.context,
+      tools: this.tools,
+      caller: this,
+      environment: this.environment,
+    });
   }
 
   async onReasoning(item: ReasoningItem): Promise<void> {
@@ -237,7 +222,7 @@ export class ReactiveAgent extends BaseAgent {
 
 Three things to note:
 
-1. The agent never `await`s its own capability calls inside the handlers — those methods are non-blocking, so the environment keeps delivering events while inference and tool execution run in the background.
+1. The agent never `await`s its own capability calls inside the handlers — those functions are non-blocking, so the environment keeps delivering events while inference and tool execution run in the background.
 2. The split between **self** handlers and `onExternal*` handlers means the agent reacts to its own outputs separately from observing others, with no `source` checks.
 3. Behaviors compose by **reaction**, not orchestration. Add a second agent that overrides `onExternalModelMessage` and you get a critique loop. Add a `TranscriptLogger` and you get a UI stream. Neither change touches the existing participants.
 
@@ -246,7 +231,7 @@ A deeper walkthrough lives on the dedicated [Reactive Agent](/docs/reactive-agen
 <Cards>
   <Card title="Reactive Agent" href="/docs/reactive-agent" description="What a reactive agent is and how to build one with Mozaik." />
   <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus participants join." />
-  <Card title="Generators" href="/docs/generators" description="Plug in custom inference and tool execution." />
-  <Card title="Streaming" href="/docs/streaming" description="Semantic events and live UIs." />
-  <Card title="Agent Swarms" href="/docs/agent-swarms" description="Compose many reactive agents into a collaborative swarm." />
+  <Card title="Capabilities & Tools" href="/docs/capabilities" description="The free functions a participant uses to produce events." />
+  <Card title="Selective listening" href="/docs/selective-listening" description="Scope a participant to react only to specific participant types." />
+  <Card title="Error handling" href="/docs/error-handling" description="onError, onParticipantError, and AgenticError." />
 </Cards>

@@ -1,0 +1,33 @@
+---
+title: Selective listening
+description: Scope a participant so it only reacts to external events from specific participant types.
+icon: Filter
+---
+
+By default a participant reacts to external events from **every** other participant. To scope a participant so it only reacts to specific participant *types*, populate its `listens` list with those classes.
+
+When `listens` is non-empty, the environment only delivers external events whose source is an instance of one of the listed classes:
+
+```ts
+import { BaseParticipant } from '@mozaik-ai/core';
+
+export class Critic extends BaseParticipant {
+  // Only react to events produced by Writer participants.
+  protected listens = [Writer];
+}
+```
+
+With the list above, the `Critic` receives `onExternalModelMessage`, `onExternalFunctionCall`, and the other `onExternal*` events only when the source is a `Writer`. Events from any other participant type are not delivered to it.
+
+A few things to note:
+
+- An empty `listens` (the default) means "listen to everyone".
+- `listens` only scopes **external** events. A participant always receives its own events through the self handlers (`onFunctionCall`, `onModelMessage`, …).
+- Messages and lifecycle hooks follow the same scoping: a scoped participant reacts to messages and membership changes from the types it listens to.
+
+This is how you build focused collaborators — a reviewer that only watches writers, a guardrail that only watches tool-calling agents — without manual `source instanceof` checks inside every handler.
+
+<Cards>
+  <Card title="Participants" href="/docs/participants" description="The typed handler set and how participants react." />
+  <Card title="Agent Swarms" href="/docs/agent-swarms" description="Compose focused, scoped collaborators into a swarm." />
+</Cards>

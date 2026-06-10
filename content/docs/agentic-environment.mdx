@@ -9,9 +9,9 @@ icon: Network
 There is **no central scheduler**. The environment does not decide who runs next, who is allowed to speak, or in what order. Behavior emerges from how participants react to delivered events.
 
 <Mermaid chart={`flowchart LR
-    Human[BaseHuman] -->|sendMessage| Env(("AgenticEnvironment"))
-    Agent[BaseAgent] -->|"runInference / executeFunctionCall"| Env
-    Observer[Custom Participant] -->|join| Env
+    Human[Participant] -->|"sendMessage(env, text, caller)"| Env(("AgenticEnvironment"))
+    Agent[Participant] -->|"runInference / executeFunctionCall"| Env
+    Observer[Participant] -->|join| Env
     Env -->|"onMessage / onExternal*"| Human
     Env -->|"onFunctionCall / onReasoning / ..."| Agent
     Env -->|"onExternal*"| Observer
@@ -28,20 +28,18 @@ const environment = new AgenticEnvironment();
 human.join(environment);
 agent.join(environment);
 
-environment.start();
+// ...participants emit events as soon as they join...
 
-// ...participants stream events...
-
-environment.stop();
+agent.leave(environment);
 ```
 
 | Call | Effect |
 | --- | --- |
-| `new AgenticEnvironment()` | Creates an empty environment with no participants. |
-| `participant.join(environment)` | Registers the participant. From now on it will receive every event through its typed handlers. |
-| `participant.leave(environment)` | Unregisters the participant. Others receive `onParticipantLeft`. |
-| `environment.start()` | Opens the bus for delivery. |
-| `environment.stop()` | Shuts the bus down. |
+| `new AgenticEnvironment(name?, { silent? })` | Creates an empty environment with no participants. `silent` controls internal error logging. |
+| `participant.join(environment)` | Registers the participant. From now on it will receive every event through its typed handlers; it gets `onJoined`, others get `onParticipantJoined`. |
+| `participant.leave(environment)` | Unregisters the participant. It gets `onLeft`, others get `onParticipantLeft`. |
+
+There is no separate `start`/`stop` step — events flow as soon as participants join.
 
 ## Typed handlers
 
@@ -64,8 +62,12 @@ Each participant exposes one handler per event type. Every handler defaults to a
 | `onExternalModelMessage` | another agent's inference returns an assistant message |
 | `onInternalEvent` | its own inference emits a `SemanticEvent<T>` |
 | `onExternalEvent` | another participant emits a `SemanticEvent<T>` |
+| `onError` | one of its own handlers throws |
+| `onParticipantError` | another participant's handler throws |
 
-The split between **self** handlers (`onFunctionCall`, `onReasoning`, `onModelMessage`, `onFunctionCallOutput`, `onInternalEvent`) and **`onExternal*`** handlers means a participant can encode "act on my own outputs" separately from "observe others", without inspecting `source` by hand.
+The split between **self** handlers (`onFunctionCall`, `onReasoning`, `onModelMessage`, `onFunctionCallOutput`, `onInternalEvent`) and **`onExternal*`** handlers means a participant can encode "act on my own outputs" separately from "observe others", without inspecting `source` by hand. See [Error handling](/docs/error-handling) for `onError` / `onParticipantError`.
+
+By default a participant reacts to events from every other participant. To scope it to specific participant types, see [Selective listening](/docs/selective-listening).
 
 ## What flows on the bus
 
@@ -84,12 +86,12 @@ Three kinds of events can be exchanged:
 When a participant produces a message or context item, the environment dispatches the matching handler on every joined participant **synchronously and without awaiting them**. Two practical consequences:
 
 - **A slow listener cannot block producers.** Even if a logger or a downstream agent is busy, the environment keeps fanning out events.
-- **Multiple capabilities can produce events into the same environment concurrently.** Each capability call is a fresh promise wrapping an async iterable, and events are streamed in as they arrive.
+- **Multiple capabilities can produce events into the same environment concurrently.** Each capability call returns immediately and emits events as they arrive.
 
 ```ts
-// Both participants produce events in parallel — neither awaits the other.
-human.sendMessage(environment, 'Hello');
-agent.runInference(environment, context, model);
+// Both capabilities produce events in parallel — neither blocks the other.
+sendMessage(environment, 'Hello', human);
+runInference({ model: 'gpt-5.5', context, caller: agent, environment });
 ```
 
 ## What the environment is not
@@ -101,6 +103,6 @@ agent.runInference(environment, context, model);
 <Cards>
   <Card title="Participants" href="/docs/participants" description="Capabilities, observer and reactive agent patterns." />
   <Card title="Reactive Agent" href="/docs/reactive-agent" description="What a reactive agent is and how to build one with Mozaik." />
-  <Card title="Generators" href="/docs/generators" description="Customize how inference and tool outputs are produced." />
+  <Card title="Capabilities & Tools" href="/docs/capabilities" description="The free functions that produce messages, inference, and tool outputs." />
   <Card title="Streaming" href="/docs/streaming" description="Semantic events and live UIs." />
 </Cards>
