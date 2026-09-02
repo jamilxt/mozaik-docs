@@ -1,0 +1,68 @@
+---
+title: Runtime
+description: The shared space where participants meet, events are published, and agent loops run.
+icon: Play
+---
+
+The **runtime** is the shared space where participants meet, events are published, and agent loops run. Create one with `defineRuntime`, then call `initializeRuntime` once with a `RuntimeState`:
+
+```ts
+import { defineRuntime, RuntimeState } from '@mozaik-ai/core';
+
+class AppState extends RuntimeState {}
+
+const { initializeRuntime, resolveRuntime, resolveParticipant, join, leave, sendMessage, sendEvent, runLoop } =
+  defineRuntime<AppState>();
+
+initializeRuntime({ state: new AppState() });
+```
+
+`defineRuntime` returns the functions you use for the rest of the session. They are **not** top-level package exports — keep them in module scope (or re-export them yourself).
+
+| Function | Role |
+| --- | --- |
+| `initializeRuntime({ state, inferenceRunnerConfig? })` | Create the runtime. Throws if called twice. |
+| `resolveRuntime()` | The initialized runtime (including `.state`). |
+| `resolveParticipant(id)` | Look up a joined participant by id. |
+| `join(participant)` / `leave(participant)` | Membership. |
+| `sendMessage(message, senderId)` | Publish a `message.sent` event. |
+| `sendEvent(event, senderId)` | Publish any `SemanticEvent`. |
+| `runLoop(agentId, message, inferenceInput, interceptionHandler?)` | Start an agent loop. |
+
+Calling `initializeRuntime` a second time throws `"Runtime already initialized"`. Calling any of the other functions before `initializeRuntime` throws `"Runtime not initialized"`.
+
+`sendMessage` and `sendEvent` also throw if `senderId` is not a joined participant. `resolveParticipant` throws if the id is not in the registry.
+
+## initializeRuntime
+
+```ts
+initializeRuntime({
+  state: new AppState(),
+  inferenceRunnerConfig?: {
+    supportedModels?: GenerativeModel[];
+    runner?: InferenceRunner;
+  },
+});
+```
+
+By default the runtime uses `DefaultInferenceRunner` with the bundled [`supportedModels`](/docs/models) list. Pass `inferenceRunnerConfig.supportedModels` to narrow or replace that list, or `inferenceRunnerConfig.runner` to supply your own `InferenceRunner`.
+
+## resolveRuntime and resolveParticipant
+
+`resolveRuntime()` returns the `RuntimeService` created by `initializeRuntime`. Read and write shared data on `.state` — see [Runtime state](/docs/runtime-state).
+
+`resolveParticipant(id)` looks up a joined participant. Use it when you have an id from an event payload or `participant.joined` and need the live object.
+
+## Membership and messaging
+
+`join` and `leave` update the participant registry and publish `participant.joined` / `participant.left`. Joining an id that is already present is a no-op.
+
+`sendMessage(message, senderId)` publishes `message.sent` with payload `{ message }`. `sendEvent(event, senderId)` publishes any `SemanticEvent` you construct. Both return `void`.
+
+`runLoop` is documented on [The agent loop](/docs/agent-loop).
+
+<Cards>
+  <Card title="Runtime state" href="/docs/runtime-state" description="The typed store every participant shares." />
+  <Card title="Semantic events" href="/docs/semantic-events" description="What join, sendMessage, and runLoop publish." />
+  <Card title="Models" href="/docs/models" description="Bundled models and custom inference runners." />
+</Cards>

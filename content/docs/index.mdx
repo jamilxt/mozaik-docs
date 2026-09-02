@@ -1,52 +1,59 @@
 ---
 title: Introduction
-description: Mozaik is a TypeScript framework for building reactive agents that collaborate in an event-driven agentic environment.
+description: Mozaik is a TypeScript runtime for interoperable AI agents — concurrent, aware, and adaptive.
 active: blue
 icon: Rocket
 ---
 
-Humans, agents, observers, and tools are all `Participant`s of the same `AgenticEnvironment`. Each participant emits events — plain-text **messages**, typed **`ContextItem`s** for model internals (function calls, outputs, reasoning, model messages), and **`SemanticEvent<T>`** stream chunks when inference is streaming — and every other participant sees those events as they arrive and decides whether to react, intercept, or stay silent. No central scheduler.
+Mozaik is a TypeScript runtime for interoperable AI agents. Humans, agents, and observers are all `Participant`s of the same runtime. They share typed `RuntimeState`, publish `SemanticEvent`s, and react through situation handlers. There is no central scheduler.
+
+v4 is a new runtime API. You create a session with `defineRuntime`, join participants built by `createHuman` / `createAgent`, and start thinking with `runLoop`. The older environment-and-handler-override style is gone.
+
+## Agent interoperability
+
+Mozaik is built around three attributes:
+
+- **Concurrency** — Agents work independently without blocking one another. Each `runLoop` is fire-and-forget.
+- **Awareness** — Agents understand other participants, events, and their shared `RuntimeState`.
+- **Adaptivity** — Agents change behavior based on runtime state and emerging needs, through situation handlers and interception.
+
+Together, these free agents from a specific harness so they can work across projects.
 
 ## Get started
 
 <Cards>
-  <Card title="Installation" href="/docs/installation" description="Add @mozaik-ai/core and configure your API key." />
-  <Card title="Quickstart" href="/docs/quickstart" description="Spin up an environment with a human and an agent participant." />
-  <Card title="Reactive Agent" href="/docs/reactive-agent" description="What a reactive agent is and how to build one with Mozaik." />
-  <Card title="Architecture" href="/docs/architecture" description="How environment, participants, capabilities, and generators fit together." />
+  <Card title="Installation" href="/docs/installation" description="Add @mozaik-ai/core and configure provider credentials." />
+  <Card title="Quickstart" href="/docs/quickstart" description="Initialize a runtime, join a human and an agent, and send a message." />
+  <Card title="Runtime" href="/docs/runtime" description="defineRuntime and the functions you use for the session." />
+  <Card title="Situation handlers" href="/docs/situation-handlers" description="When/then reactions to semantic events." />
 </Cards>
 
-## Why Mozaik
-
-- **Reactive agents** — Agents react to events in the environment instead of following a hard-coded pipeline. Drop in a new participant and behavior emerges from how it reacts to what others emit.
-- **Event-driven agentic environment** — `AgenticEnvironment` is a broadcast bus. Participants `join()` and listen for the specific events they care about: `onMessage`, `onFunctionCall`, `onReasoning`, `onModelMessage`, and their `onExternal*` counterparts.
-- **Collaborative by default** — Multiple agents share one environment and adapt to each other in real time. Add a critic, a planner, or an observer without rewiring the existing ones.
-- **Reaction over orchestration** — Every handler defaults to a no-op. Override only the ones you care about. Compose behaviors by joining participants, not by editing a central controller.
-- **Non-blocking under the hood** — Capability methods stream items as they are produced, so a slow inference or tool call never holds up other participants.
-- **OpenResponses-aligned types** — `ContextItem` mirrors the [OpenResponses](https://www.openresponses.org/) vocabulary, so your domain types stay stable across providers.
-
-## Explore the framework
+## Explore the runtime
 
 <Cards>
-  <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus that fans every message and item out to every participant." />
-  <Card title="Participants" href="/docs/participants" description="BaseParticipant, roles as patterns, and reactive agents." />
-  <Card title="Capabilities & Tools" href="/docs/capabilities" description="runInference, executeFunctionCall, sendMessage, and Tool definitions." />
-  <Card title="Streaming" href="/docs/streaming" description="Semantic events and live UIs with model streaming." />
-  <Card title="Core concepts" href="/docs/concepts" description="ModelContext, ContextItem taxonomy, and persistence." />
+  <Card title="Participants" href="/docs/participants" description="createHuman, createAgent, and observers." />
+  <Card title="Concurrent agents" href="/docs/concurrent-agents" description="Join several participants and let loops run in parallel." />
+  <Card title="Semantic events" href="/docs/semantic-events" description="The event bus: type, producerId, occurredAt, payload." />
+  <Card title="The agent loop" href="/docs/agent-loop" description="context_update through idle, including tools." />
+  <Card title="Interception" href="/docs/interception" description="Rewrite a loop transition before it runs." />
 </Cards>
 
-## Advanced
+## Guides
 
 <Cards>
-  <Card title="Agent Swarms" href="/docs/agent-swarms" description="Build collaborative swarms of reactive agents that work together on the same goal." />
+  <Card title="Tools" href="/docs/tools" description="FunctionTool definitions and MCP servers." />
+  <Card title="Streaming" href="/docs/streaming" description="inference.stream chunks for live UIs." />
+  <Card title="Structured output" href="/docs/structured-output" description="JSON Schema on InferenceInput." />
+  <Card title="Model context" href="/docs/model-context" description="ContextItem taxonomy and persistence." />
+  <Card title="Models" href="/docs/models" description="Bundled providers and custom inference runners." />
 </Cards>
 
 ## Resources
 
 <Cards>
+  <Card title="Examples" href="/docs/examples" description="mozaik-examples and projects built with Mozaik." />
   <Card title="Mozaik on GitHub" href="https://github.com/jigjoy-ai/mozaik" description="Source, issues, and releases." />
   <Card title="@mozaik-ai/core on npm" href="https://www.npmjs.com/package/@mozaik-ai/core" description="Published package and versions." />
-  <Card title="OpenResponses" href="https://www.openresponses.org/" description="Provider-agnostic LLM interface spec." />
 </Cards>
 
 ## License

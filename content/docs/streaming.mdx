@@ -1,50 +1,52 @@
 ---
 title: Streaming
-description: SemanticEvent streaming — yield provider chunks from inference and handle them with onInternalEvent and onExternalEvent.
-icon: Radio
+description: Pass streaming true on InferenceInput to publish each provider chunk as inference.stream.
+icon: AudioLines
 ---
 
-Streaming is how **`SemanticEvent<T>`** moves through the environment. Alongside **messages** (`string`) and **`ContextItem`s** (completed model/tool artifacts), semantic events are the third exchangeable event kind: incremental provider payloads with a `type` and `data`, delivered while inference is still running.
-
-When streaming is enabled, inference yields `SemanticEvent` instances as the provider emits chunks, and the environment delivers each one on the bus — `onInternalEvent` on the producer, `onExternalEvent(source, event)` on everyone else.
-
-## Enable streaming
-
-Pass `streaming: true` to `runInference` for a model whose specification supports it:
+Pass `streaming: true` on the `InferenceInput` you give `runLoop`. The loop takes the `inference_streaming` path and publishes each provider chunk as `inference.stream`. The payload is the inner provider event (`type` + `payload`).
 
 ```ts
-runInference({ model: 'gpt-5.5', context, caller: this, environment, streaming: true });
+runLoop(agent.getId(), message, {
+  model: 'gpt-5.5',
+  context: agent.getMemory().getContext(),
+  tools: agent.getTools(),
+  streaming: true,
+});
 ```
 
-Each yielded event is a **`SemanticEvent<T>`** — `event.type` names the provider event, `event.data` carries the payload. Use the handlers to drive a live UI — for example, print text deltas from `response.output_text.delta` events:
+Requesting streaming for a model whose specification has `supportsStreaming: false` fails validation before the API is called.
+
+Handle chunks with a situation handler that matches `inference.stream`:
 
 ```ts
-import { BaseParticipant, Participant, SemanticEvent } from '@mozaik-ai/core';
+import { SituationSpecification, type SituationHandler, type SituationContext } from '@mozaik-ai/core';
 
-export class LiveUIAgent extends BaseParticipant {
-  // Observe this agent's own stream chunks.
-  async onInternalEvent(event: SemanticEvent<unknown>): Promise<void> {
-    if (event.type === 'response.output_text.delta') {
-      process.stdout.write(String((event.data as { delta?: string }).delta ?? ''));
-    }
-  }
-
-  // React to another participant's stream chunks.
-  async onExternalEvent(source: Participant, event: SemanticEvent<unknown>): Promise<void> {
-    if (event.type === 'response.output_text.delta') {
-      const { delta } = event.data as { delta: string };
-      process.stdout.write(delta);
-    }
+class WhenInferenceStreams extends SituationSpecification {
+  isSatisfiedBy({ event }: SituationContext): boolean {
+    return event.type === 'inference.stream';
   }
 }
+
+const liveUi: SituationHandler = {
+  specification: new WhenInferenceStreams(),
+  processor: {
+    apply({ event }) {
+      const inner = event.payload as { type?: string; payload?: { delta?: string } };
+      if (inner.type === 'response.output_text.delta') {
+        process.stdout.write(String(inner.payload?.delta ?? ''));
+      }
+    },
+  },
+};
 ```
 
-Requesting `streaming: true` for a model whose specification has `supportsStreaming: false` fails request validation before the API is called.
+When streaming is off, the loop stays on `inference` and only publishes `inference.started` / `inference.completed`. Completed model output still arrives as `inference.completed` (and then `model.answer`) in both modes.
 
-When streaming is off, inference yields **`ContextItem`s only** (`ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`) — no semantic events on the bus. See [Core concepts](/docs/concepts#messages-contextitems-and-semanticevents) for how the three event kinds relate, [Capabilities & Tools](/docs/capabilities) for the `runInference` signature, and [OpenResponses](/docs/open-responses) for how completed items map to the provider spec.
+`inference.completed` carries `InferenceOutput`: `items` (`FunctionCallItem` | `ReasoningItem` | `ModelMessageItem`), `tokenUsage`, and `rowResponse`.
 
 <Cards>
-  <Card title="Agentic environment" href="/docs/agentic-environment" description="Handler delivery and fan-out semantics." />
-  <Card title="Participants" href="/docs/participants" description="onInternalEvent and onExternalEvent on any participant." />
-  <Card title="Capabilities & Tools" href="/docs/capabilities" description="runInference and the streaming option." />
+  <Card title="Semantic events" href="/docs/semantic-events" description="inference.stream and the rest of the loop events." />
+  <Card title="The agent loop" href="/docs/agent-loop" description="inference vs inference_streaming." />
+  <Card title="Models" href="/docs/models" description="supportsStreaming on each bundled model." />
 </Cards>

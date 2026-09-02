@@ -1,0 +1,78 @@
+---
+title: The agent loop
+description: runLoop drives one agent turn as a state machine from context_update to idle.
+icon: Repeat
+---
+
+`runLoop(agentId, message, inferenceInput, interceptionHandler?)` drives one agent turn as a state machine. It starts at `context_update` and runs until `idle`. Tool execution and the follow-up inference live inside the loop — you do not call a separate function-call runner.
+
+Each step: optionally intercept the pending transition, execute the state, then resolve the next transition.
+
+<Mermaid chart={`flowchart TD
+    Start([runLoop]) --> CU[context_update]
+    CU --> INF[inference]
+    INF -->|function_call item| FC[function_call]
+    INF -->|assistant message| MM[model_message]
+    FC --> INF
+    MM --> Idle[idle]
+`} />
+
+| State | What it does |
+| --- | --- |
+| `context_update` | Appends the user message to the agent's context. |
+| `inference` | Calls the model and waits for the full response. |
+| `inference_streaming` | Same call, streaming; each chunk is published as `inference.stream`. |
+| `function_call` | Runs the matching tool, writes the call and output back into context, then returns to inference. |
+| `model_message` | Publishes `model.answer`, then the loop goes `idle`. |
+
+`runLoop` is fire-and-forget. Each invocation gets a unique `loopId`, so concurrent agents (or two loops on the same agent) do not share a cursor.
+
+## InferenceInput
+
+The third argument is an `InferenceInput`:
+
+```ts
+type InferenceInput = {
+  model: string;
+  maxOutputTokens?: number;
+  reasoningEffort?: string;
+  tools?: Tool[];
+  streaming?: boolean;
+  structuredOutput?: StructuredOutputFormat;
+  context: ModelContext;
+};
+```
+
+Typical call from a situation processor:
+
+```ts
+runLoop(participant.getId(), message, {
+  model: 'gpt-5.5',
+  context: participant.getMemory().getContext(),
+  tools: participant.getTools(),
+});
+```
+
+Pass `streaming: true` to take the `inference_streaming` path — see [Streaming](/docs/streaming). Pass `structuredOutput` to constrain the assistant message — see [Structured output](/docs/structured-output).
+
+When inference finishes, `inference.completed` carries an `InferenceOutput`:
+
+```ts
+type InferenceOutput = {
+  items: Array<FunctionCallItem | ReasoningItem | ModelMessageItem>;
+  tokenUsage: TokenUsage | undefined;
+  rowResponse: unknown;
+};
+```
+
+If the model asked for a tool, the loop looks up `inferenceInput.tools` by name, runs `tool.invoke`, publishes `function_call.completed`, and returns to inference. An unknown tool name writes an error `FunctionCallOutputItem` and continues.
+
+## Interception
+
+The optional fourth argument is an `InterceptionHandler`. Use it to inspect or rewrite the next state before it runs — see [Interception](/docs/interception).
+
+<Cards>
+  <Card title="Semantic events" href="/docs/semantic-events" description="Events each loop state publishes." />
+  <Card title="Interception" href="/docs/interception" description="Rewrite a transition before it executes." />
+  <Card title="Tools" href="/docs/tools" description="FunctionTool and the in-loop tool runner." />
+</Cards>

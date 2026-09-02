@@ -1,237 +1,89 @@
 ---
 title: Participants
-description: The single abstraction for humans, agents, observers, and tools in a reactive, event-driven agentic environment.
+description: Humans, agents, and observers — factories, manifests, and situation handlers.
 icon: Users
 ---
 
-In Mozaik, **everything that produces or consumes events is a `Participant`**: humans, reactive agents, transcript loggers, guardrails, UI streams. They all share one abstraction and one set of typed event handlers for **messages**, **`ContextItem`s**, and **`SemanticEvent<T>`** stream chunks.
+A **participant** is anyone who can join the runtime. Mozaik ships two factories:
 
-Use `BaseParticipant` as your base class — every handler it defines is a no-op, so you only override the events you actually care about:
+| Role | Factory | What it carries |
+| --- | --- | --- |
+| **Human** | `createHuman({ name, capabilities, handlers })` | A manifest and situation handlers. Typically calls `sendMessage`. |
+| **Agent** | `createAgent({ name, capabilities, instruction, tools, handlers })` | Manifest, handlers, an instruction, tools, and memory (`agent.getMemory().getContext()`). Typically starts thinking with `runLoop`. |
+| **Observer** | Either factory, handlers only | Never calls `sendMessage` or `runLoop` — only reacts. |
+
+Every participant has a **manifest** (`id`, `name`, `role`, `capabilities`) and a list of **situation handlers**. Identity is the manifest; behavior is the handlers you register — not method overrides on a base class.
 
 ```ts
-import { BaseParticipant } from '@mozaik-ai/core';
+import { createAgent, createHuman } from '@mozaik-ai/core';
 
-class MyParticipant extends BaseParticipant {
-  async onMessage(message: string): Promise<void> {
-    // observe, react, or ignore
-  }
-}
+const human = createHuman({ name: 'User', capabilities: [], handlers: [] });
+
+const agent = createAgent({
+  name: 'Assistant',
+  capabilities: ['inference'],
+  instruction: 'You are a helpful teammate.',
+  tools: [],
+  handlers: [],
+});
 ```
 
-A participant can:
+`id` is a UUID assigned at creation (`crypto.randomUUID()`). `role` is `"human"` or `"agent"` depending on the factory. The role is which functions a participant calls and which specifications it registers. A critic that only watches `model.answer` from others is still just a participant.
 
-- **Observe** events from other participants (telemetry, audit, UI streaming).
-- **React** to events by triggering its own capabilities (turn an incoming `onMessage` into an inference run, turn an `onFunctionCall` into a tool execution).
-- **Ignore** events it does not care about — handlers it doesn't override are no-ops.
+## Manifest and accessors
 
-## Roles are patterns, not classes
-
-There are no separate `BaseHuman` / `BaseAgent` / `BaseObserver` classes. A participant's *role* is simply which capability functions it calls and which handlers it overrides:
-
-| Role | How to build it |
+| Method | Returns |
 | --- | --- |
-| **Human** | A participant that calls `sendMessage(environment, text, caller)` |
-| **Agent** | A participant that calls `runInference(...)` and `executeFunctionCall(...)` |
-| **Observer** | A participant that only overrides handlers and never runs inference |
+| `getId()` | Manifest id. |
+| `getManifest()` | `{ id, name, role, capabilities }`. |
+| `getHandlers()` / `setHandlers(handlers)` | The situation handler list. |
 
-## Typed handlers
+Agents also expose:
 
-| Handler | Triggered when… |
+| Method | Returns |
 | --- | --- |
-| `onJoined` | this participant joins an environment |
-| `onLeft` | this participant leaves an environment |
-| `onParticipantJoined` | another participant joins the same environment |
-| `onParticipantLeft` | another participant leaves the same environment |
-| `onMessage` | any participant sends a message |
-| `onFunctionCall` | its own inference returns a function call |
-| `onExternalFunctionCall` | another agent's inference returns a function call |
-| `onFunctionCallOutput` | its own function call runner returns a result |
-| `onExternalFunctionCallOutput` | another agent's function call runner returns a result |
-| `onReasoning` | its own inference returns a reasoning item |
-| `onExternalReasoning` | another agent's inference returns a reasoning item |
-| `onModelMessage` | its own inference returns an assistant message |
-| `onExternalModelMessage` | another agent's inference returns an assistant message |
-| `onInternalEvent` | its own inference emits a `SemanticEvent<T>` |
-| `onExternalEvent` | another participant emits a `SemanticEvent<T>` |
-| `onError` | one of its own handlers throws |
-| `onParticipantError` | another participant's handler throws |
+| `getMemory()` | `Memory` — call `getContext()` for the agent's `ModelContext`. |
+| `getTools()` | The `Tool[]` passed to `createAgent`. |
+| `getDeveloperMessage()` | The instruction string. |
 
-The split between **self** and **`onExternal*`** handlers lets a participant encode "act on my own outputs" separately from "observe others", with no manual `source` checks. That applies to `ContextItem`s and to semantic events alike.
-
-## Capabilities
-
-Capabilities describe what a participant can *produce*. Each is a non-blocking free function that streams events into the environment; the participant passes itself as `caller`.
-
-| Function | Produces |
-| --- | --- |
-| `sendMessage(environment, message, caller)` | messages (strings) via `onMessage` on other participants |
-| `runInference({ model, context, caller, environment, ... })` | `ReasoningItem`, `FunctionCallItem`, `ModelMessageItem`, and `SemanticEvent<T>` when streaming |
-| `executeFunctionCall(environment, item, tool, caller)` | `FunctionCallOutputItem` |
-
-Capability functions return immediately and emit their events as they are produced. **Callers never `await` a capability for its result** — this is what allows multiple participants to act on the same environment concurrently. They are covered in full on [Capabilities & Tools](/docs/capabilities).
-
-## Membership
-
-A participant joins and leaves environments directly:
+`createAgent` writes the instruction into memory as a `DeveloperMessageItem` before you join. Pass that context into `runLoop` so the model sees it:
 
 ```ts
-import { BaseParticipant } from '@mozaik-ai/core';
-
-const participant = new BaseParticipant();
-participant.join(environment);
-// ...
-participant.leave(environment);
+runLoop(agent.getId(), message, {
+  model: 'gpt-5.5',
+  context: agent.getMemory().getContext(),
+  tools: agent.getTools(),
+});
 ```
 
-`join` registers the participant (it gets `onJoined`, others get `onParticipantJoined`). `leave` unregisters it (it gets `onLeft`, others get `onParticipantLeft`).
+## Observer
 
-## Lifecycle hooks
-
-Every participant receives lifecycle notifications when it or others join or leave an environment:
+An observer is the same factories with processors that only take side actions — log, persist, render — and never call `sendMessage` or `runLoop`:
 
 ```ts
-import { BaseParticipant, Participant } from '@mozaik-ai/core';
+import { createHuman, SituationSpecification, type SituationHandler, type SituationContext } from '@mozaik-ai/core';
 
-export class TeamAgent extends BaseParticipant {
-  onJoined(): void {
-    console.log('I joined the environment');
-  }
-
-  onLeft(): void {
-    console.log('I left the environment');
-  }
-
-  onParticipantJoined(participant: Participant): void {
-    console.log(`${participant.constructor.name} joined`);
-  }
-
-  onParticipantLeft(participant: Participant): void {
-    console.log(`${participant.constructor.name} left`);
+class WhenModelAnswers extends SituationSpecification {
+  isSatisfiedBy({ event }: SituationContext): boolean {
+    return event.type === 'model.answer';
   }
 }
+
+const transcript: SituationHandler = {
+  specification: new WhenModelAnswers(),
+  processor: {
+    apply({ event }) {
+      console.log('[model.answer]', event.producerId, event.payload);
+    },
+  },
+};
+
+const observer = createHuman({ name: 'Transcript', capabilities: [], handlers: [transcript] });
+join(observer);
 ```
-
-This lets participants react to membership changes — for example, an agent could start inference only after a required collaborator has joined, or clean up shared state when someone leaves.
-
-## Patterns
-
-### Passive observer
-
-Extend `BaseParticipant` and just consume events. No inference capabilities required.
-
-```ts
-import {
-  BaseParticipant,
-  Participant,
-  FunctionCallItem,
-  FunctionCallOutputItem,
-  ReasoningItem,
-  ModelMessageItem,
-} from '@mozaik-ai/core';
-
-export class TranscriptLogger extends BaseParticipant {
-  async onMessage(message: string): Promise<void> {
-    console.log('[message]', message);
-  }
-
-  async onExternalFunctionCall(source: Participant, item: FunctionCallItem): Promise<void> {
-    console.log(`[${source.constructor.name}] function_call`, item);
-  }
-
-  async onExternalFunctionCallOutput(source: Participant, item: FunctionCallOutputItem): Promise<void> {
-    console.log(`[${source.constructor.name}] function_call_output`, item);
-  }
-
-  async onExternalReasoning(source: Participant, item: ReasoningItem): Promise<void> {
-    console.log(`[${source.constructor.name}] reasoning`, item);
-  }
-
-  async onExternalModelMessage(source: Participant, item: ModelMessageItem): Promise<void> {
-    console.log(`[${source.constructor.name}] model_message`, item);
-  }
-}
-```
-
-Drop one of these into any environment and you have a live transcript. Add another that pushes to a websocket and you have a UI stream. None of the existing participants change.
-
-### Reactive agent
-
-A reactive agent extends `BaseParticipant` and overrides only the handlers it wants to react on. Capabilities are the free functions `runInference` and `executeFunctionCall` — the participant passes itself as `caller`.
-
-```ts
-import {
-  BaseParticipant,
-  UserMessageItem,
-  FunctionCallItem,
-  FunctionCallOutputItem,
-  ReasoningItem,
-  ModelMessageItem,
-  AgenticEnvironment,
-  ModelContext,
-  Tool,
-  runInference,
-  executeFunctionCall,
-} from '@mozaik-ai/core';
-
-export class ReactiveAgent extends BaseParticipant {
-  constructor(
-    private readonly environment: AgenticEnvironment,
-    private readonly context: ModelContext,
-    private readonly tools: Tool[] = [],
-  ) {
-    super();
-  }
-
-  async onMessage(message: string): Promise<void> {
-    this.context.addContextItem(UserMessageItem.create(message));
-    runInference({
-      model: 'gpt-5.5',
-      context: this.context,
-      tools: this.tools,
-      caller: this,
-      environment: this.environment,
-    });
-  }
-
-  async onFunctionCall(item: FunctionCallItem): Promise<void> {
-    this.context.addContextItem(item);
-    const tool = this.tools.find((t) => t.name === item.name);
-    if (tool) executeFunctionCall(this.environment, item, tool, this);
-  }
-
-  async onFunctionCallOutput(item: FunctionCallOutputItem): Promise<void> {
-    this.context.addContextItem(item);
-    runInference({
-      model: 'gpt-5.5',
-      context: this.context,
-      tools: this.tools,
-      caller: this,
-      environment: this.environment,
-    });
-  }
-
-  async onReasoning(item: ReasoningItem): Promise<void> {
-    this.context.addContextItem(item);
-  }
-
-  async onModelMessage(item: ModelMessageItem): Promise<void> {
-    this.context.addContextItem(item);
-  }
-}
-```
-
-Three things to note:
-
-1. The agent never `await`s its own capability calls inside the handlers — those functions are non-blocking, so the environment keeps delivering events while inference and tool execution run in the background.
-2. The split between **self** handlers and `onExternal*` handlers means the agent reacts to its own outputs separately from observing others, with no `source` checks.
-3. Behaviors compose by **reaction**, not orchestration. Add a second agent that overrides `onExternalModelMessage` and you get a critique loop. Add a `TranscriptLogger` and you get a UI stream. Neither change touches the existing participants.
-
-A deeper walkthrough lives on the dedicated [Reactive Agent](/docs/reactive-agent) page.
 
 <Cards>
-  <Card title="Reactive Agent" href="/docs/reactive-agent" description="What a reactive agent is and how to build one with Mozaik." />
-  <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus participants join." />
-  <Card title="Capabilities & Tools" href="/docs/capabilities" description="The free functions a participant uses to produce events." />
-  <Card title="Selective listening" href="/docs/selective-listening" description="Scope a participant to react only to specific participant types." />
-  <Card title="Error handling" href="/docs/error-handling" description="onError, onParticipantError, and AgenticError." />
+  <Card title="Situation handlers" href="/docs/situation-handlers" description="How participants react to events." />
+  <Card title="Concurrent agents" href="/docs/concurrent-agents" description="Join several participants at once." />
+  <Card title="Tools" href="/docs/tools" description="FunctionTool lists on createAgent and runLoop." />
 </Cards>

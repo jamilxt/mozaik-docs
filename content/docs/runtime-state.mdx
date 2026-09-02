@@ -1,0 +1,66 @@
+---
+title: Runtime state
+description: The typed store every participant shares. Subclass RuntimeState for goals, queues, and transcripts.
+icon: Database
+---
+
+**Runtime state** is the typed store every participant shares. `RuntimeState` already holds the participant registry (`participants: Map<string, Participant>`). Subclass it for anything the team needs to share — an active goal, a work queue, a transcript buffer:
+
+```ts
+import { defineRuntime, RuntimeState } from '@mozaik-ai/core';
+
+class AppState extends RuntimeState {
+  activeGoal?: string;
+}
+
+const { initializeRuntime, resolveRuntime } = defineRuntime<AppState>();
+
+initializeRuntime({ state: new AppState() });
+
+resolveRuntime().state.activeGoal = 'ship the runtime docs';
+```
+
+Participants read and write this object from situation processors (and from an `InterceptionHandler`). There is no second hidden store.
+
+## Registry helpers
+
+`RuntimeState` ships these methods. You do not call them directly for membership — `join` / `leave` do that and also publish events.
+
+| Method | Role |
+| --- | --- |
+| `addParticipant(participant)` | Insert into the map. No-op if the id is already present. |
+| `removeParticipant(participant)` | Delete by id. |
+| `getParticipant(id)` | Lookup, or `undefined`. |
+| `getParticipants()` | Snapshot of everyone currently joined. |
+
+## How to use it
+
+- Put shared mutable data on your subclass — not on module-level variables, and not on a hidden environment object.
+- Read and write from a `SituationProcessor.apply` (or an interception handler) when an event arrives.
+- Type `defineRuntime<YourState>()` so `resolveRuntime().state` is your subclass.
+
+```ts
+import { SituationSpecification, type SituationHandler, type SituationContext } from '@mozaik-ai/core';
+
+class WhenOthersSendAMessage extends SituationSpecification {
+  isSatisfiedBy({ event, participant }: SituationContext): boolean {
+    return event.type === 'message.sent' && event.producerId !== participant.getId();
+  }
+}
+
+const recordGoal: SituationHandler = {
+  specification: new WhenOthersSendAMessage(),
+  processor: {
+    apply({ event }) {
+      const { message } = event.payload as { message: string };
+      resolveRuntime().state.activeGoal = message;
+    },
+  },
+};
+```
+
+<Cards>
+  <Card title="Runtime" href="/docs/runtime" description="initializeRuntime and resolveRuntime." />
+  <Card title="Situation handlers" href="/docs/situation-handlers" description="Where participants read and write shared state." />
+  <Card title="Concurrent agents" href="/docs/concurrent-agents" description="Membership lives on RuntimeState." />
+</Cards>

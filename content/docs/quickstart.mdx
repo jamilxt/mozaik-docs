@@ -1,90 +1,89 @@
 ---
 title: Quickstart
-description: Join a human and an agent on an AgenticEnvironment, send a message, and let the agent react through typed, non-blocking event handlers.
+description: Initialize a runtime, join a human and an agent, and let the agent think when someone else sends a message.
 icon: Zap
 ---
 
-This walkthrough mirrors the example in the [Mozaik README](https://github.com/jigjoy-ai/mozaik): create an `AgenticEnvironment`, build participants from `BaseParticipant`, `join` them, and send a message. The agent does not need a separate "start inference" call — it reacts to events like any other participant.
+This walkthrough matches the example in the [Mozaik README](https://github.com/jigjoy-ai/mozaik): define a runtime, register a situation handler, `join` a human and an agent, then `sendMessage`. The agent does not need a separate "start inference" call — it reacts through a specification that matches `message.sent`.
 
 ## Full example
 
 ```ts
 import {
-  AgenticEnvironment,
-  BaseParticipant,
-  ModelContext,
-  UserMessageItem,
-  runInference,
-  sendMessage,
+  defineRuntime,
+  RuntimeState,
+  createAgent,
+  createHuman,
+  SituationSpecification,
+  Agent,
+  type SituationHandler,
+  type SituationContext,
 } from '@mozaik-ai/core';
 
-const environment = new AgenticEnvironment();
+class AppState extends RuntimeState {}
 
-const human = new BaseParticipant();
+const { initializeRuntime, join, sendMessage, runLoop } = defineRuntime<AppState>();
 
-class Agent extends BaseParticipant {
-  private readonly context = ModelContext.create('demo');
+initializeRuntime({ state: new AppState() });
 
-  async onMessage(message: string): Promise<void> {
-    this.context.addContextItem(UserMessageItem.create(message));
-    runInference({ model: 'gpt-5.5', context: this.context, caller: this, environment });
+class WhenOthersSendAMessage extends SituationSpecification {
+  isSatisfiedBy({ event, participant }: SituationContext): boolean {
+    return event.type === 'message.sent' && event.producerId !== participant.getId();
   }
 }
 
-const agent = new Agent();
+const thinkOnMessage: SituationHandler = {
+  specification: new WhenOthersSendAMessage(),
+  processor: {
+    apply({ event, participant }) {
+      if (!(participant instanceof Agent)) return;
+      const { message } = event.payload as { message: string };
+      runLoop(participant.getId(), message, {
+        model: 'gpt-5.5',
+        context: participant.getMemory().getContext(),
+        tools: participant.getTools(),
+      });
+    },
+  },
+};
 
-human.join(environment);
-agent.join(environment);
+const agent = createAgent({
+  name: 'Assistant',
+  capabilities: ['inference'],
+  instruction: 'You are a helpful teammate.',
+  tools: [],
+  handlers: [thinkOnMessage],
+});
 
-sendMessage(environment, 'Hello', human);
+const human = createHuman({ name: 'User', capabilities: [], handlers: [] });
+
+join(human);
+join(agent);
+
+sendMessage('Hello', human.getId());
 ```
 
-A participant reacts as soon as it `join()`s the environment. There is no separate bus to start — the environment fans every event out to every joined participant as it is produced.
+`defineRuntime` returns the functions for this session. They are **not** top-level package exports — keep them in module scope (or re-export them yourself). Call `initializeRuntime` once before `join`, `sendMessage`, or `runLoop`.
 
 ## What this is doing
 
-1. **`AgenticEnvironment`** — An event bus for messages, `ContextItem`s, and `SemanticEvent<T>` stream chunks. It fans every event out to every joined participant through the matching typed handler.
-2. **`BaseParticipant`** — The base class every participant extends. Every handler is a no-op, so you override only the ones you care about. A "human" is just a participant that calls `sendMessage`; an "agent" is one that calls `runInference`.
-3. **`sendMessage(environment, message, caller)`** — A capability function. Other participants receive the message via `onMessage`. It returns immediately; delivery and every downstream reaction happen in the background.
-4. **`runInference({ ... })`** — A capability function the agent calls from its handlers. It is fire-and-forget: it returns right away while the model runs.
+1. **`defineRuntime<AppState>()`** — Creates the session API typed to your `RuntimeState` subclass.
+2. **`initializeRuntime({ state })`** — Instantiates the runtime. Calling it twice throws `"Runtime already initialized"`.
+3. **`WhenOthersSendAMessage`** — A `SituationSpecification` that matches `message.sent` from someone other than this participant.
+4. **`runLoop`** — Starts one agent turn (context update, inference, tools, answer). It returns `void` and keeps running in the background.
+5. **`sendMessage('Hello', human.getId())`** — Publishes `message.sent`. The agent's handler matches and starts the loop.
 
-## How the agent reacts (non-blocking)
-
-When the human calls `sendMessage`, the environment delivers `onMessage(message)` to every other participant. A reactive agent typically overrides that handler to record the message and call `runInference`:
-
-```ts
-async onMessage(message: string): Promise<void> {
-  this.context.addContextItem(UserMessageItem.create(message));
-  runInference({ model: 'gpt-5.5', context: this.context, caller: this, environment: this.environment });
-}
-```
-
-`runInference` is non-blocking. The handler returns right away, so the agent can accept another `onMessage`, react to other participants, or handle unrelated events while the model is still running.
-
-When inference finishes, the runner streams `ContextItem`s back into the environment. The agent receives them through its own handlers — `onFunctionCall`, `onReasoning`, `onModelMessage` — where it can record context, execute tools, or run inference again. Other participants see the same items via `onExternal*` handlers.
-
-That is the core idea: **capabilities produce events; handlers react to events; nothing blocks the bus.**
-
-| Step | What happens |
-| --- | --- |
-| Human sends | `sendMessage(environment, text, human)` → `onMessage` on the agent (and everyone else except the sender) |
-| Agent reacts | Override `onMessage` → `runInference({ ... })` (returns immediately) |
-| Model streams | `onReasoning`, `onFunctionCall`, `onModelMessage` on the agent; `onExternal*` on observers and peers |
-| Tool loop | Override `onFunctionCall` → `executeFunctionCall(environment, item, tool, caller)` → `onFunctionCallOutput` → `runInference` again |
-
-For the complete handler set (`onFunctionCallOutput`, context setup, joining), see the [Reactive Agent](/docs/reactive-agent) page.
+Do not `await` `runLoop` or `sendMessage` inside a processor. Both return immediately while the runtime keeps delivering events.
 
 ## What you'll need
 
-- A **`ModelContext`** the agent appends items to (`ModelContext.create('demo')`).
-- A **`ModelName`** for `runInference` (for example `'gpt-5.5'`). The provider is resolved from the model name; set the matching API key — see [Installation](/docs/installation).
+- A provider API key — see [Installation](/docs/installation).
+- A **model name** on `InferenceInput` (for example `'gpt-5.5'`). The provider is resolved from that name — see [Models](/docs/models).
 - For human input, call `sendMessage` from your UI or I/O layer when the user acts.
 
-The capability functions and `Tool` definitions are covered on the [Capabilities & Tools](/docs/capabilities) page.
-
 <Cards>
-  <Card title="Reactive Agent" href="/docs/reactive-agent" description="Turn a base participant into a reactive agent with typed handlers." />
-  <Card title="Agentic environment" href="/docs/agentic-environment" description="The event bus and how participants join, react, and emit." />
-  <Card title="Participants" href="/docs/participants" description="Capabilities, observer and reactive agent patterns." />
-  <Card title="Capabilities & Tools" href="/docs/capabilities" description="runInference, executeFunctionCall, sendMessage, and Tool definitions." />
+  <Card title="Runtime" href="/docs/runtime" description="The functions defineRuntime returns." />
+  <Card title="Situation handlers" href="/docs/situation-handlers" description="Specifications, processors, and composition." />
+  <Card title="The agent loop" href="/docs/agent-loop" description="How runLoop walks from context_update to idle." />
+  <Card title="Participants" href="/docs/participants" description="createHuman, createAgent, and observers." />
 </Cards>

@@ -1,0 +1,48 @@
+---
+title: Concurrent agents
+description: Several participants joined at once — membership events, fire-and-forget loops, and shared state.
+icon: Network
+---
+
+Several participants can be joined at the same time. Membership is runtime state, and every membership change is an event:
+
+<Mermaid chart={`flowchart LR
+    joinFn["join(participant)"] --> add["RuntimeState.addParticipant"]
+    add --> joined["publish participant.joined"]
+    leaveFn["leave(participant)"] --> remove["RuntimeState.removeParticipant"]
+    remove --> left["publish participant.left"]
+    joined --> all["every joined participant"]
+    left --> remaining["remaining participants"]
+`} />
+
+- `join(participant)` adds the participant to `RuntimeState` and publishes `participant.joined`. Joining an id that is already present is a no-op.
+- `leave(participant)` removes them and publishes `participant.left` to whoever is still joined.
+- Each `runLoop(agentId, ...)` creates a new loop with its own `loopId` and does **not** await it. Two agents can think, call tools, and answer at the same time.
+- Events from any loop fan out to **every** joined participant. A slow processor is not a barrier: the runtime does not await `processor.apply`.
+- Shared mutable data lives on your `RuntimeState` subclass. Situation processors (and interception) are how participants adapt to it.
+
+```ts
+const observer = createHuman({ name: 'Observer', capabilities: [], handlers: [] });
+
+join(human);
+join(agent);
+join(observer);
+
+sendMessage('Hello', human.getId());
+
+leave(observer);
+```
+
+An agent can wait until a collaborator has joined (`participant.joined`) before calling `runLoop`, or clean up shared state when someone leaves (`participant.left`).
+
+## Compose by reaction
+
+Behaviors compose by **reaction**, not orchestration. Add a second agent whose spec matches `model.answer` and you get a critique loop. Add a transcript observer and you get a UI stream. Neither change touches the existing participants.
+
+That is the same idea behind [baro](https://github.com/Lotus015/baro): many specialized participants on one runtime, each reacting to the events it cares about. See [Examples](/docs/examples).
+
+<Cards>
+  <Card title="Runtime state" href="/docs/runtime-state" description="Where membership and shared data live." />
+  <Card title="Situation handlers" href="/docs/situation-handlers" description="Filter on type and producerId." />
+  <Card title="The agent loop" href="/docs/agent-loop" description="Why runLoop is fire-and-forget." />
+</Cards>

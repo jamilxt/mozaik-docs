@@ -24,7 +24,7 @@ The [npm package](https://www.npmjs.com/package/@mozaik-ai/core) is scoped as **
 
 ## Environment
 
-Mozaik picks a provider from the model name you pass to `runInference`, and each provider's SDK reads its credential from the environment. Set the keys for the providers you use:
+Mozaik picks a provider from the model name you pass to `runLoop` (the `model` field on `InferenceInput`). Each provider SDK reads its credential from the environment. Set the keys for the providers you use:
 
 ```bash
 # .env
@@ -37,6 +37,8 @@ DeepSeek models run through the OpenAI-compatible chat-completions endpoint, so 
 
 Place these in a `.env` file at your project root (or configure the environment in your host) so server-side code can read them securely. Do not commit secrets.
 
+The bundled model names and how to swap the runner are on [Models](/docs/models).
+
 ## TypeScript
 
 Mozaik is written in TypeScript. Make sure your `tsconfig` uses a modern `moduleResolution` (e.g. `"bundler"`, `"node16"`, or `"nodenext"`) so package imports resolve cleanly.
@@ -44,6 +46,6 @@ Mozaik is written in TypeScript. Make sure your `tsconfig` uses a modern `module
 ## Next steps
 
 <Cards>
-  <Card title="Quickstart" href="/docs/quickstart" description="Run an environment with a human and an agent participant." />
+  <Card title="Quickstart" href="/docs/quickstart" description="Initialize a runtime with a human and an agent." />
   <Card title="Package exports" href="/docs/package-exports" description="Every symbol exported from @mozaik-ai/core." />
 </Cards>

@@ -1,0 +1,73 @@
+---
+title: Models
+description: Bundled model names, provider credentials, and custom inference runners.
+icon: Sparkles
+---
+
+You select a model by the `model` string on `InferenceInput`. Mozaik resolves that name against the runtime's `supportedModels` list, maps `ModelContext` to the provider API, and returns typed `ContextItem`s.
+
+The default list is the exported `supportedModels` array. Each entry is a `GenerativeModel`: an `Endpoint` plus a `ModelSpecification`.
+
+## Bundled names
+
+| Provider | `model` values | Endpoint |
+| --- | --- | --- |
+| OpenAI | `"gpt-5.4"`, `"gpt-5.4-mini"`, `"gpt-5.4-nano"`, `"gpt-5.5"` | `OpenAIResponses` |
+| Anthropic | `"claude-haiku-4-5"`, `"claude-sonnet-4-6"`, `"claude-opus-4-7"`, `"claude-opus-4-8"` | `AnthropicMessages` |
+| Gemini | `"gemini-3.5-flash"`, `"gemini-3.1-pro-preview"` | `GeminiGenerateContent` |
+| DeepSeek | `"deepseek-v4-flash"`, `"deepseek-v4-pro"` | `OpenAIChatCompletions` |
+
+Credentials are read from the environment — see [Installation](/docs/installation). DeepSeek uses `OPENAI_API_KEY` / `OPENAI_BASE_URL` pointed at DeepSeek.
+
+The exported endpoint classes (`OpenAIResponses`, `OpenAIChatCompletions`, `AnthropicMessages`, `GeminiGenerateContent`) are the adapters behind those rows. You only need them if you build a custom `supportedModels` list.
+
+## Specification flags
+
+Each model has a `ModelSpecification`:
+
+| Field | Meaning |
+| --- | --- |
+| `name` | The string you pass as `InferenceInput.model`. |
+| `provider` | `"openai"` \| `"anthropic"` \| `"gemini"` \| `"deepseek"` |
+| `supportsStreaming` | Whether `streaming: true` is valid. |
+| `supportsFunctionCalling` | Whether `tools` are valid. |
+| `supportsStructuredOutput` | Whether `structuredOutput` is valid. |
+| `supportsReasoningEffort` / `supportedReasoningEfforts` | Allowed `reasoningEffort` values. |
+| `contextWindowSize` / `maxOutputTokens` | Limits. |
+| `supportedContextItemTypes` | Which item kinds the mapper accepts. |
+
+Requesting a feature the specification rejects fails validation before the API is called.
+
+DeepSeek models set `supportsStructuredOutput: false`. The bundled OpenAI, Anthropic, and Gemini models set streaming, function calling, and structured output to `true`.
+
+## Custom runner
+
+Pass `inferenceRunnerConfig` to `initializeRuntime` to replace the default list or the runner itself:
+
+```ts
+import { defineRuntime, RuntimeState, DefaultInferenceRunner, supportedModels } from '@mozaik-ai/core';
+
+class AppState extends RuntimeState {}
+
+const { initializeRuntime } = defineRuntime<AppState>();
+
+initializeRuntime({
+  state: new AppState(),
+  inferenceRunnerConfig: {
+    supportedModels, // or a subset / your own GenerativeModel[]
+    // runner: new DefaultInferenceRunner(supportedModels, validator),
+  },
+});
+```
+
+`InferenceRunner` is `{ run(request): Promise<InferenceOutput>; stream(request): AsyncGenerator<SemanticEvent> }`. `DefaultInferenceRunner` is the built-in implementation.
+
+## OpenResponses
+
+`ContextItem` types follow the [OpenResponses](https://www.openresponses.org/) vocabulary: the same conceptual items for context and responses even when wire formats differ. Swapping providers is a `model` string change, not a domain-model change. Persistence stays typed items, not vendor-specific JSON.
+
+<Cards>
+  <Card title="Installation" href="/docs/installation" description="Provider API keys." />
+  <Card title="The agent loop" href="/docs/agent-loop" description="InferenceInput.model and related fields." />
+  <Card title="Structured output" href="/docs/structured-output" description="Which models enforce JSON Schema." />
+</Cards>

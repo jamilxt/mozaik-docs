@@ -1,0 +1,41 @@
+---
+title: Examples
+description: Working examples and projects built on the Mozaik runtime.
+icon: BookOpen
+---
+
+Working examples are available in [mozaik-examples](https://github.com/jigjoy-ai/mozaik-examples). That repo shows how to use `@mozaik-ai/core` for collaborative agents.
+
+## Made with Mozaik
+
+- **[baro](https://github.com/Lotus015/baro)** — a Claude agent orchestrator where ten specialized participants (planner, executors, reviewer, fixer, librarian, auditor, and more) work fully concurrently on the same goal, like a team collaborating in real time instead of a single agent doing everything alone.
+
+<Mermaid chart={`flowchart LR
+    Conductor[Conductor] -->|"RunStart / LevelCompute / StorySpawn"| Bus(("Mozaik Runtime"))
+    Factory[StoryFactory] -->|"spawn StoryAgent"| Bus
+    Story[StoryAgent] -->|"StoryResult / retries"| Bus
+    Librarian[Librarian] -->|"index exploration outputs"| Bus
+    Sentry[Sentry] -->|"flag file conflicts"| Bus
+    Critic[Critic] -->|"per-turn verdict"| Bus
+    Surgeon[Surgeon] -->|"emit ReplanItem"| Bus
+    Operator[Operator] -->|"bridge TUI commands"| Bus
+    Auditor[Auditor] -->|"write JSONL log"| Bus
+    Cartographer[Cartographer] -->|"emit UI frames"| Bus
+    Bus -->|"StorySpawnRequest"| Factory
+    Bus -->|"StoryResult / LevelCompleted"| Conductor
+    Bus -->|"tool calls"| Librarian
+    Bus -->|"Edit/Write calls"| Sentry
+    Bus -->|"agent turns"| Critic
+    Bus -->|"terminal failure"| Surgeon
+    Bus -->|"user input"| Operator
+    Bus -->|"all events"| Auditor
+    Bus -->|"all events"| Cartographer
+`} />
+
+That layout is the [concurrent agents](/docs/concurrent-agents) idea at production scale: one runtime, many participants, each reacting to the events it cares about.
+
+<Cards>
+  <Card title="Quickstart" href="/docs/quickstart" description="The smallest human + agent session." />
+  <Card title="Concurrent agents" href="/docs/concurrent-agents" description="Join several participants on one runtime." />
+  <Card title="Mozaik on GitHub" href="https://github.com/jigjoy-ai/mozaik" description="Source, issues, and contributing." />
+</Cards>

@@ -1,0 +1,46 @@
+---
+title: Interception
+description: Inspect or rewrite a loop transition before that state runs.
+icon: Shield
+---
+
+An **`InterceptionHandler`** inspects or rewrites a loop transition **before** that state runs. Pass it as the optional fourth argument to `runLoop`:
+
+```ts
+interface InterceptionHandler {
+  isSatisfiedBy(transition: ExecutableTransition): boolean;
+  handle(transition: ExecutableTransition): Promise<ExecutableTransition>;
+}
+```
+
+When `isSatisfiedBy` is true, the loop publishes `interception.started`, awaits `handle` (which may change `nextStateId` and `input`), publishes `interception.finished`, then executes the returned transition.
+
+```ts
+import { type InterceptionHandler } from '@mozaik-ai/core';
+
+const inspectFunctionCalls: InterceptionHandler = {
+  isSatisfiedBy(transition) {
+    return transition.nextStateId === 'function_call';
+  },
+  async handle(transition) {
+    if (transition.nextStateId === 'function_call') {
+      console.log('about to call', transition.input.call.name);
+    }
+    return transition;
+  },
+};
+
+runLoop(agent.getId(), message, inferenceInput, inspectFunctionCalls);
+```
+
+Use it to steer loop execution by rewriting the next state — for example, swapping a tool call’s input — without putting that logic inside the agent’s situation handlers. That is how you keep a human in the loop, or another agent, to control what runs next.
+
+A transition is `{ nextStateId, input }`. `nextStateId` is one of `context_update`, `inference`, `inference_streaming`, `function_call`, or `model_message`. The `input` shape matches that state (for `function_call`, `{ call, inferenceInput }`).
+
+Unlike situation processors, `handle` **is** awaited. The loop does not continue until the handler returns.
+
+<Cards>
+  <Card title="The agent loop" href="/docs/agent-loop" description="Where interception sits in the state machine." />
+  <Card title="Semantic events" href="/docs/semantic-events" description="interception.started and interception.finished." />
+  <Card title="Tools" href="/docs/tools" description="The function_call transition you often intercept." />
+</Cards>

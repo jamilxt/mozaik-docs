@@ -1,0 +1,66 @@
+---
+title: Model context
+description: ModelContext, ContextItem taxonomy, and ModelContextRepository.
+icon: Layers
+---
+
+An agent's memory is a **`ModelContext`**: an ordered list of `ContextItem`s the model is asked to reason over. `createAgent` starts one automatically and stores the instruction as a `DeveloperMessageItem`. You usually pass `agent.getMemory().getContext()` into `runLoop`.
+
+`runLoop` also appends the user message itself during `context_update` (`UserMessageItem.create(message)`), so you do not wrap that string by hand in the typical handler.
+
+```ts
+import { ModelContext, DeveloperMessageItem, UserMessageItem } from '@mozaik-ai/core';
+
+const context = ModelContext.create()
+  .addItem(DeveloperMessageItem.create('You are a helpful assistant.'))
+  .addItem(UserMessageItem.create('What is the capital of France?'));
+```
+
+`ModelContext.create()` assigns a UUID. Use `addItem` or `addContextItems` to append. `rehydrate({ id, items })` rebuilds a context you previously persisted.
+
+## ContextItem taxonomy
+
+A **`ContextItem`** is one atomic piece of that history. Concrete item types follow the [OpenResponses](https://www.openresponses.org/) vocabulary so your domain types stay stable across providers.
+
+### Client items (you produce these)
+
+| Item | Purpose |
+| --- | --- |
+| `UserMessageItem` | End-user text. `create(text)` |
+| `DeveloperMessageItem` | Developer instructions (what `createAgent` writes from `instruction`). |
+| `SystemMessageItem` | System-level directives. |
+| `FunctionCallOutputItem` | Result of executing a tool. The loop writes these for you. |
+
+### Model items (the model produces these)
+
+| Item | Purpose |
+| --- | --- |
+| `ModelMessageItem` | Assistant-facing message content. Published on `model.answer`. |
+| `FunctionCallItem` | A tool invocation requested by the model. |
+| `ReasoningItem` | Reasoning segments when the provider exposes them. |
+
+Together, these items form an ordered transcript you can persist, trim, transform, or share.
+
+## Persistence
+
+`ModelContextRepository` is an interface you implement:
+
+```ts
+interface ModelContextRepository {
+  save(context: ModelContext): Promise<void>;
+  get(id: string): Promise<ModelContext>;
+  getByProjectId(projectId: string): Promise<ModelContext[]>;
+}
+```
+
+There is no shipped in-memory implementation. Implement the interface against Postgres, Redis, or object storage, then `save` after a turn and `rehydrate` when a user returns.
+
+## Token usage
+
+`inference.completed` may include a `TokenUsage` (`inputTokens`, `outputTokens`, `totalTokens`, plus `InputTokenDetails` / `OutputTokenDetails`). Use it for metering; it is not stored on `ModelContext` unless you copy it yourself.
+
+<Cards>
+  <Card title="Participants" href="/docs/participants" description="agent.getMemory().getContext()." />
+  <Card title="The agent loop" href="/docs/agent-loop" description="How context_update appends the user message." />
+  <Card title="Models" href="/docs/models" description="OpenResponses-aligned mapping per provider." />
+</Cards>

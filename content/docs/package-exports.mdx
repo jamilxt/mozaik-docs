@@ -4,34 +4,38 @@ description: Main entry point and typed exports for @mozaik-ai/core.
 icon: Box
 ---
 
-The primary API is exported from **`@mozaik-ai/core`**. The table below reflects the public [`src/index.ts`](https://github.com/jigjoy-ai/mozaik/blob/development/src/index.ts); your installed version may add or refine symbols — always check `node_modules/@mozaik-ai/core` for the exact set.
+The primary API is exported from **`@mozaik-ai/core`**. The table below reflects the public [`src/index.ts`](https://github.com/jigjoy-ai/mozaik/blob/development/src/index.ts).
+
+`join`, `leave`, `sendMessage`, `sendEvent`, and `runLoop` are **not** package exports. They come from `defineRuntime()` after `initializeRuntime`.
 
 ## Main entry
 
 | Category | Exports |
 | --- | --- |
-| **Agentic environment** | `AgenticEnvironment`, `Participant`, `BaseParticipant`, `AgenticError` |
-| **Capabilities** | `runInference`, `executeFunctionCall`, `sendMessage`, `InferenceParams`, `InferenceResponse` |
-| **Context** | `ModelContext`, `ModelContextRepository`, `InMemoryModelContextRepository`, `ContextItem`, `SemanticEvent` |
+| **Runtime** | `defineRuntime`, `RuntimeState`, `InferenceRunnerConfig` |
+| **Participants** | `createAgent`, `createHuman`, `Participant`, `Agent`, `Human` |
+| **Situations** | `SituationHandler`, `SituationProcessor`, `SituationSpecification`, `SituationContext` |
+| **Loop** | `InterceptionHandler`, `LoopStateExecution`, `LoopTransition`, `ExecutableLoopStateId`, `ExecutableTransition` |
+| **Inference** | `InferenceInput`, `InferenceOutput`, `InferenceRunner`, `DefaultInferenceRunner`, `supportedModels` |
+| **Events** | `SemanticEvent` |
+| **Context** | `ModelContext`, `ModelContextRepository`, `ContextItem` |
 | **Client items** | `UserMessageItem`, `DeveloperMessageItem`, `SystemMessageItem`, `FunctionCallOutputItem` |
 | **Model items** | `ModelMessageItem`, `FunctionCallItem`, `ReasoningItem` |
-| **Models** | `ModelName`, `Tool`, `Endpoint`, `StructuredOutputFormat` |
+| **Tools & MCP** | `Tool`, `McpClient`, `McpServerConfig`, `McpToolSpec`, `McpToolRegistry` |
+| **Models** | `Endpoint`, `OpenAIResponses`, `OpenAIChatCompletions`, `AnthropicMessages`, `GeminiGenerateContent`, `StructuredOutputFormat` |
 | **Usage** | `TokenUsage`, `InputTokenDetails`, `OutputTokenDetails` |
-
-Import example:
 
 ```ts
 import {
-  AgenticEnvironment,
-  BaseParticipant,
-  runInference,
-  executeFunctionCall,
-  sendMessage,
-  ModelContext,
-  UserMessageItem,
-  DeveloperMessageItem,
-  Tool,
-  InMemoryModelContextRepository,
+  defineRuntime,
+  RuntimeState,
+  createAgent,
+  createHuman,
+  SituationSpecification,
+  Agent,
+  type SituationHandler,
+  type SituationContext,
+  type InferenceInput,
 } from '@mozaik-ai/core';
 ```
 

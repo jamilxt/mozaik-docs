@@ -1,0 +1,64 @@
+---
+title: Semantic events
+description: Everything interesting on the runtime is a SemanticEvent with type, producerId, occurredAt, and payload.
+icon: Radio
+---
+
+The runtime is an event bus. Everything interesting is a **`SemanticEvent`**:
+
+| Field | Meaning |
+| --- | --- |
+| `type` | String name of the event (`"message.sent"`, `"inference.completed"`, …). |
+| `producerId` | Id of the participant that caused it. |
+| `occurredAt` | When it was created. |
+| `payload` | Typed data for that event. |
+
+`publish` delivers every event to every joined participant. There is no built-in “internal vs external” split — a situation specification filters on `event.type` and on `event.producerId` versus `participant.getId()`.
+
+Participants never poll. Custom events go through `sendEvent(event, senderId)` with any `type` string.
+
+```ts
+import { SemanticEvent } from '@mozaik-ai/core';
+
+sendEvent(SemanticEvent.create('goal.set', human.getId(), { goal: 'ship docs' }), human.getId());
+```
+
+`sendEvent` still requires `senderId` to be a joined participant. The event you pass is published as-is (including its own `type` and `producerId`).
+
+## Lifecycle and messaging
+
+| Event | Published when | Payload |
+| --- | --- | --- |
+| `participant.joined` | `join(participant)` | Participant manifest (`id`, `name`, `role`, `capabilities`) |
+| `participant.left` | `leave(participant)` | Participant manifest |
+| `message.sent` | `sendMessage(message, senderId)` | `{ message: string }` |
+| _custom_ | `sendEvent(event, senderId)` | Whatever you put on the event |
+
+## Agent loop
+
+Producer is the agent whose loop is running:
+
+| Event | Published when | Payload |
+| --- | --- | --- |
+| `context_update.started` | The loop begins appending the user message | Received message plus `loopId` |
+| `context_update.completed` | Context is ready for inference | `InferenceInput` plus `loopId` |
+| `inference.started` | The model call begins | `InferenceInput` |
+| `inference.stream` | Each streaming chunk (only when `streaming: true`) | The inner provider event |
+| `inference.completed` | The model call finished | `InferenceOutput` (`items`, `tokenUsage`, `rowResponse`) |
+| `function_call.started` | A tool is about to run | `{ call, inferenceInput }` |
+| `function_call.completed` | The tool returned | `FunctionCallOutputItem` |
+| `model.answer` | The assistant message is committed | `{ answer: ModelMessageItem }` |
+| `interception.started` | An `InterceptionHandler` matched a transition | The pending `LoopTransition` |
+| `interception.finished` | The handler returned (possibly rewritten) | The transition that will execute |
+
+`context_update.started` payload is `{ content, input, loopId }` — the received user text, the `InferenceInput` you passed to `runLoop`, and that loop's id.
+
+## Streaming
+
+Pass `streaming: true` on the `InferenceInput` you give `runLoop`. The loop takes the `inference_streaming` path and publishes each provider chunk as `inference.stream` (the inner event is the payload). Requesting streaming for a model whose specification has `supportsStreaming: false` fails validation before the API is called. See [Streaming](/docs/streaming).
+
+<Cards>
+  <Card title="Situation handlers" href="/docs/situation-handlers" description="Match events with SituationSpecification." />
+  <Card title="The agent loop" href="/docs/agent-loop" description="Which states publish which events." />
+  <Card title="Streaming" href="/docs/streaming" description="inference.stream for live UIs." />
+</Cards>

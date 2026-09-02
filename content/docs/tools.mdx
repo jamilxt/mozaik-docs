@@ -1,0 +1,92 @@
+---
+title: Tools
+description: FunctionTool definitions on createAgent and runLoop, plus MCP servers as ordinary tools.
+icon: Cog
+---
+
+A **tool** is a function the model can call during `runLoop`. The public `Tool` type is a `FunctionTool`:
+
+```ts
+interface FunctionTool {
+  type: 'function';
+  name: string;
+  description: string;
+  parameters: Record<string, any>;
+  strict: boolean;
+  invoke: (args: any) => Promise<any>;
+}
+```
+
+Pass tools on `createAgent` (so the agent can expose `getTools()`) and again on the `InferenceInput` you give `runLoop`. The loop looks up `inferenceInput.tools` by `call.name` and runs `invoke`. Tool execution lives inside `runLoop` — you do not call a separate function-call runner.
+
+```ts
+import { createAgent, type Tool } from '@mozaik-ai/core';
+
+const getWeather: Tool = {
+  type: 'function',
+  name: 'get_weather',
+  description: 'Return the current weather for a city.',
+  parameters: {
+    type: 'object',
+    properties: {
+      city: { type: 'string' },
+    },
+    required: ['city'],
+    additionalProperties: false,
+  },
+  strict: true,
+  invoke: async ({ city }) => {
+    return { city, temperature: 18, condition: 'cloudy' };
+  },
+};
+
+const agent = createAgent({
+  name: 'Assistant',
+  capabilities: ['inference'],
+  instruction: 'You are a helpful teammate.',
+  tools: [getWeather],
+  handlers: [], // register a situation handler that calls runLoop
+});
+
+runLoop(agent.getId(), 'What is the weather in Paris?', {
+  model: 'gpt-5.5',
+  context: agent.getMemory().getContext(),
+  tools: agent.getTools(),
+});
+```
+
+When the model emits a `FunctionCallItem`, the loop publishes `function_call.started`, calls `invoke`, writes a `FunctionCallOutputItem` back into context, publishes `function_call.completed`, and returns to inference. An unknown tool name writes an error output (`Error: unknown tool "..."`) and continues.
+
+`strict` is forwarded to the provider when it supports strict function calling. Use `true` for schemas the provider can enforce; MCP-discovered tools set `strict: false` because remote schemas are often looser.
+
+## MCP tools
+
+`McpClient` and `McpToolRegistry` turn remote [Model Context Protocol](https://modelcontextprotocol.io/) servers into ordinary `FunctionTool`s. The tool loop is not MCP-aware — discovered tools go on `InferenceInput.tools` like any other function.
+
+```ts
+import { createAgent, McpToolRegistry } from '@mozaik-ai/core';
+
+const registry = new McpToolRegistry([
+  { url: 'https://api.githubcopilot.com/mcp/', authToken: process.env.GITHUB_TOKEN },
+]);
+
+const mcpTools = await registry.discoverTools();
+
+const agent = createAgent({
+  name: 'Assistant',
+  capabilities: ['inference'],
+  instruction: 'You are a helpful teammate.',
+  tools: [...mcpTools],
+  handlers: [],
+});
+```
+
+`McpServerConfig` accepts `url`, optional `authToken` (sent as `Authorization: Bearer`), extra `headers`, and a client `name` (defaults to `"mozaik"`). Call `registry.close()` when you are done with the connections.
+
+The client talks Streamable HTTP. That is how Mozaik offers MCP uniformly across OpenAI, Anthropic, Gemini, and DeepSeek — the provider never sees the MCP server.
+
+<Cards>
+  <Card title="The agent loop" href="/docs/agent-loop" description="function_call lives inside runLoop." />
+  <Card title="Interception" href="/docs/interception" description="Inspect or rewrite a tool call before it runs." />
+  <Card title="Models" href="/docs/models" description="Which models support function calling." />
+</Cards>
