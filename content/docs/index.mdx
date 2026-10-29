@@ -1,23 +1,23 @@
 ---
 title: Introduction
-description: Mozaik is a TypeScript runtime for interoperable AI agents — concurrent, aware, and adaptive.
+description: Mozaik is a TypeScript framework for multi-agent collaboration — concurrent, aware, and adaptive.
 active: blue
 icon: Rocket
 ---
 
-Mozaik is a TypeScript runtime for interoperable AI agents. Humans, agents, and observers are all `Participant`s of the same runtime. They share typed `RuntimeState`, publish `SemanticEvent`s, and react through situation handlers. There is no central scheduler.
+Mozaik is a TypeScript framework for multi-agent collaboration. Humans, agents, and observers are all `Participant`s of the same runtime. They share typed `RuntimeState`, publish `SemanticEvent`s, and react through situation handlers.
 
 v4 is a new runtime API. You create a session with `defineRuntime`, join participants built by `createHuman` / `createAgent`, and start thinking with `runLoop`. The older environment-and-handler-override style is gone.
 
-## Agent interoperability
+## Multi-agent collaboration
 
 Mozaik is built around three attributes:
 
-- **Concurrency** — Agents work independently without blocking one another. Each `runLoop` is fire-and-forget.
+- **Concurrency** — Agents work alongside one another without blocking. Each `runLoop` is fire-and-forget.
 - **Awareness** — Agents understand other participants, events, and their shared `RuntimeState`.
 - **Adaptivity** — Agents change behavior based on runtime state and emerging needs, through situation handlers and interception.
 
-Together, these free agents from a specific harness so they can work across projects.
+Together, these let a team of agents and humans work on the same problem in one session.
 
 ## Get started
 
