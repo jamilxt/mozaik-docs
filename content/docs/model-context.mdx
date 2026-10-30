@@ -6,7 +6,7 @@ icon: Layers
 
 An agent's memory is a **`ModelContext`**: an ordered list of `ContextItem`s the model is asked to reason over. `createAgent` starts one automatically and stores the instruction as a `DeveloperMessageItem`. You usually pass `agent.getMemory().getContext()` into `runLoop`.
 
-`runLoop` also appends the user message itself during `context_update` (`UserMessageItem.create(message)`), so you do not wrap that string by hand in the typical handler.
+`runLoop` also appends the user message itself during `message_received` (`UserMessageItem.create(message)`), so you do not wrap that string by hand in the typical handler.
 
 ```ts
 import { ModelContext, DeveloperMessageItem, UserMessageItem } from '@mozaik-ai/core';
@@ -61,6 +61,6 @@ There is no shipped in-memory implementation. Implement the interface against Po
 
 <Cards>
   <Card title="Participants" href="/docs/participants" description="agent.getMemory().getContext()." />
-  <Card title="The agent loop" href="/docs/agent-loop" description="How context_update appends the user message." />
+  <Card title="The agent loop" href="/docs/agent-loop" description="How message_received appends the user message." />
   <Card title="Models" href="/docs/models" description="OpenResponses-aligned mapping per provider." />
 </Cards>

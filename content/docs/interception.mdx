@@ -35,7 +35,7 @@ runLoop(agent.getId(), message, inferenceInput, inspectFunctionCalls);
 
 Use it to steer loop execution by rewriting the next state — for example, swapping a tool call’s input — without putting that logic inside the agent’s situation handlers. That is how you keep a human in the loop, or another agent, to control what runs next.
 
-A transition is `{ nextStateId, input }`. `nextStateId` is one of `context_update`, `inference`, `inference_streaming`, `function_call`, or `model_message`. The `input` shape matches that state (for `function_call`, `{ call, inferenceInput }`).
+A transition is `{ nextStateId, input }`. `nextStateId` is one of `message_received`, `inference`, `inference_streaming`, `function_call`, or `model_message`. The `input` shape matches that state (for `function_call`, `{ call, inferenceInput }`).
 
 Unlike situation processors, `handle` **is** awaited. The loop does not continue until the handler returns.
 
