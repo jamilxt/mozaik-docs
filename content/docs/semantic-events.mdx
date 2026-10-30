@@ -40,8 +40,8 @@ Producer is the agent whose loop is running:
 
 | Event | Published when | Payload |
 | --- | --- | --- |
-| `context_update.started` | The loop begins appending the user message | Received message plus `loopId` |
-| `context_update.completed` | Context is ready for inference | `InferenceInput` plus `loopId` |
+| `message_received.started` | The loop begins appending the user message | Received message plus `loopId` |
+| `message_received.completed` | Context is ready for inference | `InferenceInput` plus `loopId` |
 | `inference.started` | The model call begins | `InferenceInput` |
 | `inference.stream` | Each streaming chunk (only when `streaming: true`) | The inner provider event |
 | `inference.completed` | The model call finished | `InferenceOutput` (`items`, `tokenUsage`, `rowResponse`) |
@@ -51,7 +51,7 @@ Producer is the agent whose loop is running:
 | `interception.started` | An `InterceptionHandler` matched a transition | The pending `LoopTransition` |
 | `interception.finished` | The handler returned (possibly rewritten) | The transition that will execute |
 
-`context_update.started` payload is `{ content, input, loopId }` — the received user text, the `InferenceInput` you passed to `runLoop`, and that loop's id.
+`message_received.started` payload is `{ content, input, loopId }` — the received user text, the `InferenceInput` you passed to `runLoop`, and that loop's id.
 
 ## Streaming
 

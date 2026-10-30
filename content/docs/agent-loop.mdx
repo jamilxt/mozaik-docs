@@ -1,16 +1,16 @@
 ---
 title: The agent loop
-description: runLoop drives one agent turn as a state machine from context_update to idle.
+description: runLoop drives one agent turn as a state machine from message_received to idle.
 icon: Repeat
 ---
 
-`runLoop(agentId, message, inferenceInput, interceptionHandler?)` drives one agent turn as a state machine. It starts at `context_update` and runs until `idle`. Tool execution and the follow-up inference live inside the loop — you do not call a separate function-call runner.
+`runLoop(agentId, message, inferenceInput, interceptionHandler?)` drives one agent turn as a state machine. It starts at `message_received` and runs until `idle`. Tool execution and the follow-up inference live inside the loop — you do not call a separate function-call runner.
 
 Each step: optionally intercept the pending transition, execute the state, then resolve the next transition.
 
 <Mermaid chart={`flowchart TD
-    Start([runLoop]) --> CU[context_update]
-    CU --> INF[inference]
+    Start([runLoop]) --> MR[message_received]
+    MR --> INF[inference]
     INF -->|function_call item| FC[function_call]
     INF -->|assistant message| MM[model_message]
     FC --> INF
@@ -19,7 +19,7 @@ Each step: optionally intercept the pending transition, execute the state, then 
 
 | State | What it does |
 | --- | --- |
-| `context_update` | Appends the user message to the agent's context. |
+| `message_received` | Appends the user message to the agent's context. |
 | `inference` | Calls the model and waits for the full response. |
 | `inference_streaming` | Same call, streaming; each chunk is published as `inference.stream`. |
 | `function_call` | Runs the matching tool, writes the call and output back into context, then returns to inference. |
