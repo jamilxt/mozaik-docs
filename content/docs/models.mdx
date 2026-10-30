@@ -12,10 +12,10 @@ The default list is the exported `supportedModels` array. Each entry is a `Gener
 
 | Provider | `model` values | Endpoint |
 | --- | --- | --- |
-| OpenAI | `"gpt-5.4"`, `"gpt-5.4-mini"`, `"gpt-5.4-nano"`, `"gpt-5.5"` | `OpenAIResponses` |
-| Anthropic | `"claude-haiku-4-5"`, `"claude-sonnet-4-6"`, `"claude-opus-4-7"`, `"claude-opus-4-8"` | `AnthropicMessages` |
-| Gemini | `"gemini-3.5-flash"`, `"gemini-3.1-pro-preview"` | `GeminiGenerateContent` |
-| DeepSeek | `"deepseek-v4-flash"`, `"deepseek-v4-pro"` | `OpenAIChatCompletions` |
+| OpenAI | `"gpt-5.4"`, `"gpt-5.4-mini"`, `"gpt-5.4-nano"`, `"gpt-5.5"`, `"gpt-6-luna"`, `"gpt-6-sol"`, `"gpt-6.1-sol"`, `"gpt-6-astra"` | `OpenAIResponses` |
+| Anthropic | `"claude-haiku-4-5"`, `"claude-sonnet-4-6"`, `"claude-opus-4-7"`, `"claude-opus-4-8"`, `"claude-sonnet-5"`, `"claude-sonnet-5-5"`, `"claude-opus-5-5"`, `"claude-fable-5-1"` | `AnthropicMessages` |
+| Gemini | `"gemini-3.5-flash"`, `"gemini-3.1-pro-preview"`, `"gemini-3.5-flash-lite"`, `"gemini-3.8-flash"` | `GeminiGenerateContent` |
+| DeepSeek | `"deepseek-v4-flash"`, `"deepseek-v4-pro"`, `"deepseek-flash"` | `OpenAIChatCompletions` |
 
 Credentials are read from the environment — see [Installation](/docs/installation). DeepSeek uses `OPENAI_API_KEY` / `OPENAI_BASE_URL` pointed at DeepSeek.
 
@@ -28,7 +28,7 @@ Each model has a `ModelSpecification`:
 | Field | Meaning |
 | --- | --- |
 | `name` | The string you pass as `InferenceInput.model`. |
-| `provider` | `"openai"` \| `"anthropic"` \| `"gemini"` \| `"deepseek"` |
+| `provider` | `"openai"` \| `"anthropic"` \| `"google"` \| `"deepseek"` |
 | `supportsStreaming` | Whether `streaming: true` is valid. |
 | `supportsFunctionCalling` | Whether `tools` are valid. |
 | `supportsStructuredOutput` | Whether `structuredOutput` is valid. |
